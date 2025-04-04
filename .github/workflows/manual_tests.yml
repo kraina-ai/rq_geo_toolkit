@@ -68,5 +68,4 @@ jobs:
         run: pdm install --lockfile pdm.oldest.lock -dG test --skip=post_install
       - name: Run tests with pytest
         run: |
-          pdm run pytest -v -s --durations=20 tests/base
-          pdm run pytest -v -s --durations=20 tests/optional_imports
+          pdm run pytest -v -s --durations=20 tests
