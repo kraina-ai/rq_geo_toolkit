@@ -4,6 +4,9 @@ from typing import Union
 
 import pytest
 from osmnx.geocoder import geocode_to_gdf
+from unittest.mock import patch
+
+from geopy.geocoders.nominatim import Nominatim
 
 from rq_geo_toolkit.geocode import geocode_to_geometry
 from rq_geo_toolkit._exceptions import QueryNotGeocodedError
@@ -38,5 +41,9 @@ def test_geocoding(query: Union[str, list[str]]) -> None:
 )
 def test_geocoding_errors(query: Union[str, list[str]]) -> None:
     """Test if geocoding throws error for two wrong queries."""
-    with pytest.raises(QueryNotGeocodedError):
+    with (
+        patch.object(Nominatim, "geocode", return_value=None) as mock_method,
+        pytest.raises(QueryNotGeocodedError),
+    ):
         geocode_to_geometry(query)
+        mock_method.assert_called_once()
