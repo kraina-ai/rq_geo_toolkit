@@ -47,6 +47,9 @@ test = [
     "boto3>=0.0.14",
 ]
 
+[tool.pdm.scripts]
+post_install = "pre-commit install"
+
 [tool.bumpver]
 current_version = "2025.3.0"
 version_pattern = "YYYY.MM.INC0"
