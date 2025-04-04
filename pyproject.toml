@@ -1,0 +1,63 @@
+[project]
+name = "rq_geo_toolkit"
+version = "2025.3.0"
+description = "Collection of geo related functions for reuse in other libraries"
+authors = [
+    {name = "Kamil Raczycki", email = ""},
+]
+dependencies = [
+    "geopandas>=1.0",
+    "shapely>=2.0.6",
+    "pyarrow>=16.0.0",
+    "rich>=12.0.0",
+    "geoarrow-rust-core>=0.3.0",
+    "pooch>=1.6.0",
+    "geopy>=2.0.0",
+    "numpy>=1.26.0",
+    "duckdb>=1.1.2",
+    "psutil>=5.6.2",
+    "polars>=1.9"
+]
+requires-python = ">=3.9"
+readme = "README.md"
+license = {text = "MIT"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.dev-dependencies]
+# pdm add -d <library>
+dev = ["bumpver", "types-requests", "setuptools>=45.0.0"]
+# pdm add -dG lint <library>
+lint = ["pre-commit>=4", "mypy>=1", "docformatter[tomli]", "ruff>=0.1.0"]
+# pdm add -dG test <library>
+test = [
+    "pytest>=7.0.0",
+    "tox-pdm>=0.7.2",
+    "pytest-mock>=3.3.0",
+    "requests-mock>=1.12.1",
+    "pytest-check>=2.3.1",
+    "pytest-parametrization>=2022.2.1",
+    "pytest-doctestplus>=1.2.1",
+    "boto3>=0.0.14",
+]
+
+[tool.bumpver]
+current_version = "2025.3.0"
+version_pattern = "YYYY.MM.INC0"
+commit_message = "chore(CI/CD): bump version {old_version} -> {new_version}"
+commit = true
+tag = false
+push = false
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = [
+    '^current_version = "{version}"$',
+    '^version = "{version}"$',
+]
+"rq_geo_toolkit/__init__.py" = ['^__version__ = "{version}"$']
