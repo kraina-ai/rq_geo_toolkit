@@ -23,7 +23,7 @@ def test_sorting() -> None:
     COPY (
         SELECT id, geometry
         FROM read_parquet('{download_file_url}')
-        USING SAMPLE 10%
+        USING SAMPLE 100%
     ) TO '{save_path}' (FORMAT parquet);
     """
 
