@@ -38,7 +38,8 @@ def sort_geoparquet_file_by_geometry(
     working_directory: Union[str, Path] = "files",
     verbosity_mode: "VERBOSITY_MODE" = "transient",
 ) -> Path:
-    """Sorts a GeoParquet file by the geometry column.
+    """
+    Sorts a GeoParquet file by the geometry column.
 
     Args:
         input_file_path (Path): Input GeoParquet file path.
