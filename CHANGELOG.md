@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2025.4.1] - 2025-04-06
 
+### Added
+
+- Option to pass parquet compression with level and number of rows per row group
+
 ## [2025.4.0] - 2025-04-04
 
 ### Added
