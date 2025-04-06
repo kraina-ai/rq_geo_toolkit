@@ -10,7 +10,11 @@ from typing import TYPE_CHECKING, Optional, Union
 import polars as pl
 import pyarrow.parquet as pq
 
-from rq_geo_toolkit.constants import PARQUET_COMPRESSION, PARQUET_ROW_GROUP_SIZE
+from rq_geo_toolkit.constants import (
+    PARQUET_COMPRESSION,
+    PARQUET_COMPRESSION_LEVEL,
+    PARQUET_ROW_GROUP_SIZE,
+)
 from rq_geo_toolkit.duckdb import set_up_duckdb_connection
 from rq_geo_toolkit.geoparquet_compression import (
     _compress_with_memory_limit,
@@ -28,6 +32,9 @@ def sort_geoparquet_file_by_geometry(
     input_file_path: Path,
     output_file_path: Optional[Path] = None,
     sort_extent: Optional[tuple[float, float, float, float]] = None,
+    compression: str = PARQUET_COMPRESSION,
+    compression_level: int = PARQUET_COMPRESSION_LEVEL,
+    row_group_size: int = PARQUET_ROW_GROUP_SIZE,
     working_directory: Union[str, Path] = "files",
     verbosity_mode: "VERBOSITY_MODE" = "transient",
 ) -> Path:
@@ -42,6 +49,15 @@ def sort_geoparquet_file_by_geometry(
         sort_extent (Optional[tuple[float, float, float, float]], optional): Extent to use
             in the ST_Hilbert function. If not, will calculate extent from the
             geometries in the file. Defaults to None.
+        compression (str, optional): Compression of the final parquet file.
+            Check https://duckdb.org/docs/sql/statements/copy#parquet-options for more info.
+            Remember to change compression level together with this parameter.
+            Defaults to "zstd".
+        compression_level (int, optional): Compression level of the final parquet file.
+            Check https://duckdb.org/docs/sql/statements/copy#parquet-options for more info.
+            Defaults to 22.
+        row_group_size (int, optional): Approximate number of rows per row group in the final
+            parquet file. Defaults to 100_000.
         working_directory (Union[str, Path], optional): Directory where to save
             the downloaded `*.parquet` files. Defaults to "files".
         verbosity_mode (Literal["silent", "transient", "verbose"], optional): Set progress
@@ -74,6 +90,7 @@ def sort_geoparquet_file_by_geometry(
             output_dir_path=order_dir_path,
             sort_extent=sort_extent,
             tmp_dir_path=tmp_dir_path,
+            row_group_size=row_group_size,
         )
 
         original_metadata_string = _parquet_schema_metadata_to_duckdb_kv_metadata(
@@ -92,7 +109,14 @@ def sort_geoparquet_file_by_geometry(
             current_memory_gb_limit=None,
             current_threads_limit=None,
             function=_compress_with_memory_limit,
-            args=(order_files, output_file_path, original_metadata_string),
+            args=(
+                order_files,
+                output_file_path,
+                original_metadata_string,
+                compression,
+                compression_level,
+                row_group_size,
+            ),
         )
 
     return output_file_path
@@ -102,6 +126,7 @@ def _sort_with_multiprocessing(
     input_file_path: Path,
     output_dir_path: Path,
     sort_extent: Optional[tuple[float, float, float, float]],
+    row_group_size: int,
     tmp_dir_path: Path,
 ) -> None:
     connection = set_up_duckdb_connection(tmp_dir_path, preserve_insertion_order=True)
@@ -171,8 +196,7 @@ def _sort_with_multiprocessing(
 
     relation.to_parquet(
         str(order_file_path),
-        row_group_size=PARQUET_ROW_GROUP_SIZE,
-        compression=PARQUET_COMPRESSION,
+        row_group_size=row_group_size,
     )
 
     connection.close()

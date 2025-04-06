@@ -14,7 +14,11 @@ import psutil
 import pyarrow.parquet as pq
 from rich import print as rprint
 
-from rq_geo_toolkit.constants import PARQUET_COMPRESSION, PARQUET_COMPRESSION_LEVEL, PARQUET_ROW_GROUP_SIZE
+from rq_geo_toolkit.constants import (
+    PARQUET_COMPRESSION,
+    PARQUET_COMPRESSION_LEVEL,
+    PARQUET_ROW_GROUP_SIZE,
+)
 from rq_geo_toolkit.duckdb import set_up_duckdb_connection
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -26,6 +30,9 @@ MEMORY_1GB = 1024**3
 def compress_parquet_with_duckdb(
     input_file_path: Path,
     output_file_path: Path,
+    compression: str = PARQUET_COMPRESSION,
+    compression_level: int = PARQUET_COMPRESSION_LEVEL,
+    row_group_size: int = PARQUET_ROW_GROUP_SIZE,
     working_directory: Union[str, Path] = "files",
     parquet_metadata: Optional[pq.FileMetaData] = None,
     verbosity_mode: "VERBOSITY_MODE" = "transient",
@@ -36,6 +43,15 @@ def compress_parquet_with_duckdb(
     Args:
         input_file_path (Path): Input GeoParquet file path.
         output_file_path (Path): Output GeoParquet file path.
+        compression (str, optional): Compression of the final parquet file.
+            Check https://duckdb.org/docs/sql/statements/copy#parquet-options for more info.
+            Remember to change compression level together with this parameter.
+            Defaults to "zstd".
+        compression_level (int, optional): Compression level of the final parquet file.
+            Check https://duckdb.org/docs/sql/statements/copy#parquet-options for more info.
+            Defaults to 22.
+        row_group_size (int, optional): Approximate number of rows per row group in the final
+            parquet file. Defaults to 100_000.
         working_directory (Union[str, Path], optional): Directory where to save
             the downloaded `*.parquet` files. Defaults to "files".
         parquet_metadata (Optional[pq.FileMetaData], optional): GeoParquet file metadata used to
@@ -52,7 +68,9 @@ def compress_parquet_with_duckdb(
     if pq.read_metadata(input_file_path).num_rows == 0:
         return input_file_path.rename(output_file_path)
 
-    with tempfile.TemporaryDirectory(dir=Path(working_directory).resolve()) as tmp_dir_name:
+    with tempfile.TemporaryDirectory(
+        dir=Path(working_directory).resolve()
+    ) as tmp_dir_name:
         tmp_dir_path = Path(tmp_dir_name)
 
         original_metadata_string = _parquet_schema_metadata_to_duckdb_kv_metadata(
@@ -65,7 +83,14 @@ def compress_parquet_with_duckdb(
             current_memory_gb_limit=None,
             current_threads_limit=None,
             function=_compress_with_memory_limit,
-            args=(input_file_path, output_file_path, original_metadata_string),
+            args=(
+                input_file_path,
+                output_file_path,
+                original_metadata_string,
+                compression,
+                compression_level,
+                row_group_size,
+            ),
         )
 
     return output_file_path
@@ -77,6 +102,9 @@ def _compress_with_memory_limit(
     original_metadata_string: str,
     current_memory_gb_limit: float,
     current_threads_limit: int,
+    compression: str,
+    compression_level: int,
+    row_group_size: int,
     tmp_dir_path: Path,
 ) -> None:
     connection = set_up_duckdb_connection(tmp_dir_path, preserve_insertion_order=True)
@@ -98,9 +126,9 @@ def _compress_with_memory_limit(
             FROM read_parquet({sql_input_str}, hive_partitioning=false) original_data
         ) TO '{output_file_path}' (
             FORMAT parquet,
-            COMPRESSION {PARQUET_COMPRESSION},
-            COMPRESSION_LEVEL {PARQUET_COMPRESSION_LEVEL},
-            ROW_GROUP_SIZE {PARQUET_ROW_GROUP_SIZE},
+            COMPRESSION {compression},
+            COMPRESSION_LEVEL {compression_level},
+            ROW_GROUP_SIZE {row_group_size},
             KV_METADATA {original_metadata_string}
         );
         """
@@ -125,7 +153,9 @@ def _run_query_with_memory_limit(
     while current_memory_gb_limit > 0:
         try:
             with (
-                tempfile.TemporaryDirectory(dir=Path(tmp_dir_path).resolve()) as tmp_dir_name,
+                tempfile.TemporaryDirectory(
+                    dir=Path(tmp_dir_path).resolve()
+                ) as tmp_dir_name,
                 multiprocessing.get_context("spawn").Pool() as pool,
             ):
                 nested_tmp_dir_path = Path(tmp_dir_name)
@@ -172,10 +202,14 @@ def _run_query_with_memory_limit(
                     f" ({current_memory_gb_limit:.2f}GB, {current_threads_limit} threads)."
                 )
 
-    raise RuntimeError("Not enough memory to run the query. Please rerun without sorting.")
+    raise RuntimeError(
+        "Not enough memory to run the query. Please rerun without sorting."
+    )
 
 
-def _parquet_schema_metadata_to_duckdb_kv_metadata(parquet_file_metadata: pq.FileMetaData) -> str:
+def _parquet_schema_metadata_to_duckdb_kv_metadata(
+    parquet_file_metadata: pq.FileMetaData,
+) -> str:
     def escape_single_quotes(s: str) -> str:
         return s.replace("'", "''")
 
