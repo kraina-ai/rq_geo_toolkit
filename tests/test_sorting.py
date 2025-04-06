@@ -30,10 +30,10 @@ def test_sorting() -> None:
     with tempfile.TemporaryDirectory(dir=save_path.parent.resolve()) as tmp_dir_name:
         tmp_dir_path = Path(tmp_dir_name)
 
-        connection = set_up_duckdb_connection(
+        with set_up_duckdb_connection(
             tmp_dir_path=tmp_dir_path, preserve_insertion_order=True
-        )
-        connection.execute(query)
+        ) as connection:
+            connection.execute(query)
 
         unsorted_pq = compress_parquet_with_duckdb(
             input_file_path=save_path,
