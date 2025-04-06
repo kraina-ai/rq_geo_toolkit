@@ -1,4 +1,4 @@
-"""Module for sorting GeoParquet files."""
+"""Module for compressing GeoParquet files."""
 
 import multiprocessing
 import tempfile
@@ -37,7 +37,8 @@ def compress_parquet_with_duckdb(
     parquet_metadata: Optional[pq.FileMetaData] = None,
     verbosity_mode: "VERBOSITY_MODE" = "transient",
 ) -> Path:
-    """Compresses a GeoParquet file while keeping its metadata.
+    """
+    Compresses a GeoParquet file while keeping its metadata.
 
     Args:
         input_file_path (Path): Input GeoParquet file path.
@@ -99,11 +100,11 @@ def _compress_with_memory_limit(
     input_file_path: Union[list[Path], Path],
     output_file_path: Path,
     original_metadata_string: str,
-    current_memory_gb_limit: float,
-    current_threads_limit: int,
     compression: str,
     compression_level: int,
     row_group_size: int,
+    current_memory_gb_limit: float,
+    current_threads_limit: int,
     tmp_dir_path: Path,
 ) -> None:
     connection = set_up_duckdb_connection(tmp_dir_path, preserve_insertion_order=True)
