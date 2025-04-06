@@ -37,8 +37,7 @@ def compress_parquet_with_duckdb(
     parquet_metadata: Optional[pq.FileMetaData] = None,
     verbosity_mode: "VERBOSITY_MODE" = "transient",
 ) -> Path:
-    """
-    Compresses a GeoParquet file while keeping its metadata.
+    """Compresses a GeoParquet file while keeping its metadata.
 
     Args:
         input_file_path (Path): Input GeoParquet file path.
