@@ -49,7 +49,7 @@ def compress_parquet_with_duckdb(
             Defaults to "zstd".
         compression_level (int, optional): Compression level of the final parquet file.
             Check https://duckdb.org/docs/sql/statements/copy#parquet-options for more info.
-            Defaults to 22.
+            Defaults to 3.
         row_group_size (int, optional): Approximate number of rows per row group in the final
             parquet file. Defaults to 100_000.
         working_directory (Union[str, Path], optional): Directory where to save
