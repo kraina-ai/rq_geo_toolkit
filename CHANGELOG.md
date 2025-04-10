@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Option to compress DuckDB SQL query instead of existing parquet file
+
 ## [2025.4.2] - 2025-04-10
 
 ### Added
