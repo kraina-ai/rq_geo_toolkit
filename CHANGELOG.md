@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2025.4.3] - 2025-04-10
+
 ### Added
 
 - Option to compress DuckDB SQL query instead of existing parquet file
@@ -38,7 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Georelated constants
 - DuckDB initialization function
 
-[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.4.2...HEAD
+[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.4.3...HEAD
+[2025.4.3]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.4.2...2025.4.3
 [2025.4.2]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.4.1...2025.4.2
 [2025.4.1]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.4.0...2025.4.1
 [2025.4.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/7d20aec8f2d1f49031920ef62084c59c9a3b8098...2025.4.0
