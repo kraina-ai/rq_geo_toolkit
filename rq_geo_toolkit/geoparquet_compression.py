@@ -7,7 +7,7 @@ from functools import partial
 from math import ceil
 from pathlib import Path
 from time import sleep
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union, cast
 
 import duckdb
 import psutil
@@ -28,7 +28,7 @@ MEMORY_1GB = 1024**3
 
 
 def compress_parquet_with_duckdb(
-    input_file_path: Path,
+    input_file_path: Union[Path, list[Path]],
     output_file_path: Path,
     compression: str = PARQUET_COMPRESSION,
     compression_level: int = PARQUET_COMPRESSION_LEVEL,
@@ -41,7 +41,7 @@ def compress_parquet_with_duckdb(
     Compresses a GeoParquet file while keeping its metadata.
 
     Args:
-        input_file_path (Path): Input GeoParquet file path.
+        input_file_path (Union[Path, list[Path]]): Input GeoParquet file path (or paths).
         output_file_path (Path): Output GeoParquet file path.
         compression (str, optional): Compression of the final parquet file.
             Check https://duckdb.org/docs/sql/statements/copy#parquet-options for more info.
@@ -61,18 +61,25 @@ def compress_parquet_with_duckdb(
             output completely. Transient tracks progress, but removes output after finished.
             Verbose leaves all progress outputs in the stdout. Defaults to "transient".
     """
-    assert input_file_path.resolve().as_posix() != output_file_path.resolve().as_posix()
+    is_single_path = isinstance(input_file_path, Path)
+    if is_single_path:
+        assert (
+            cast(Path, input_file_path).resolve().as_posix()
+            != output_file_path.resolve().as_posix()
+        )
 
     Path(working_directory).mkdir(parents=True, exist_ok=True)
 
-    if pq.read_metadata(input_file_path).num_rows == 0:
-        return input_file_path.rename(output_file_path)
+    if is_single_path and pq.read_metadata(input_file_path).num_rows == 0:
+        return cast(Path, input_file_path).rename(output_file_path)
 
-    if isinstance(input_file_path, Path):
+    if is_single_path:
         sql_input_str = f"'{input_file_path}'"
     else:
-        mapped_paths = ", ".join(f"'{path}'" for path in input_file_path)
+        mapped_paths = ", ".join(f"'{path}'" for path in cast(list[Path], input_file_path))
         sql_input_str = f"[{mapped_paths}]"
+
+    parquet_metadata = parquet_metadata or pq.read_metadata(input_file_path)
 
     query = f"""
     SELECT original_data.*
@@ -81,7 +88,7 @@ def compress_parquet_with_duckdb(
 
     return compress_query_with_duckdb(
         query=query,
-        parquet_metadata=parquet_metadata or pq.read_metadata(input_file_path),
+        parquet_metadata=parquet_metadata,
         output_file_path=output_file_path,
         compression=compression,
         compression_level=compression_level,
