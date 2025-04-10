@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 import polars as pl
+import pyarrow as pa
 import pyarrow.parquet as pq
 
 from rq_geo_toolkit.constants import (
@@ -37,6 +38,7 @@ def sort_geoparquet_file_by_geometry(
     row_group_size: int = PARQUET_ROW_GROUP_SIZE,
     working_directory: Union[str, Path] = "files",
     verbosity_mode: "VERBOSITY_MODE" = "transient",
+    remove_input_file: bool = True,
 ) -> Path:
     """
     Sorts a GeoParquet file by the geometry column.
@@ -64,11 +66,12 @@ def sort_geoparquet_file_by_geometry(
             verbosity mode. Can be one of: silent, transient and verbose. Silent disables
             output completely. Transient tracks progress, but removes output after finished.
             Verbose leaves all progress outputs in the stdout. Defaults to "transient".
+        remove_input_file (bool, optional): Remove the original file after sorting.
+            Defaults to True.
     """
     if output_file_path is None:
         output_file_path = (
-            input_file_path.parent
-            / f"{input_file_path.stem}_sorted{input_file_path.suffix}"
+            input_file_path.parent / f"{input_file_path.stem}_sorted{input_file_path.suffix}"
         )
 
     assert input_file_path.resolve().as_posix() != output_file_path.resolve().as_posix()
@@ -78,9 +81,7 @@ def sort_geoparquet_file_by_geometry(
 
     Path(working_directory).mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory(
-        dir=Path(working_directory).resolve()
-    ) as tmp_dir_name:
+    with tempfile.TemporaryDirectory(dir=Path(working_directory).resolve()) as tmp_dir_name:
         tmp_dir_path = Path(tmp_dir_name)
         order_dir_path = tmp_dir_path / "ordered"
         order_dir_path.mkdir(parents=True, exist_ok=True)
@@ -97,11 +98,10 @@ def sort_geoparquet_file_by_geometry(
             pq.read_metadata(input_file_path)
         )
 
-        input_file_path.unlink()
+        if remove_input_file:
+            input_file_path.unlink()
 
-        order_files = sorted(
-            order_dir_path.glob("*.parquet"), key=lambda x: int(x.stem)
-        )
+        order_files = sorted(order_dir_path.glob("*.parquet"), key=lambda x: int(x.stem))
 
         _run_query_with_memory_limit(
             tmp_dir_path=tmp_dir_path,
@@ -292,9 +292,7 @@ def _order_single_row_group(
         indexes_to_read_per_row_group[rg_id].append(local_index)
 
         if rg_id != current_rg_id:
-            reshuffled_indexes_to_read.append(
-                (current_rg_id, current_reshuffled_indexes_group)
-            )
+            reshuffled_indexes_to_read.append((current_rg_id, current_reshuffled_indexes_group))
             current_rg_id = rg_id
             current_reshuffled_indexes_group = [current_index_per_row_group[rg_id]]
         else:
@@ -303,25 +301,22 @@ def _order_single_row_group(
         current_index_per_row_group[rg_id] += 1
 
     if current_reshuffled_indexes_group:
-        reshuffled_indexes_to_read.append(
-            (current_rg_id, current_reshuffled_indexes_group)
-        )
+        reshuffled_indexes_to_read.append((current_rg_id, current_reshuffled_indexes_group))
 
     # Read expected rows per row group
     read_tables_per_row_group = {
-        rg_id: pq.ParquetFile(original_file_path)
-        .read_row_group(rg_id)
-        .take(local_rows_ids)
+        rg_id: pq.ParquetFile(original_file_path).read_row_group(rg_id).take(local_rows_ids)
         for rg_id, local_rows_ids in indexes_to_read_per_row_group.items()
     }
 
-    schema = pq.read_schema(original_file_path)
-    with pq.ParquetWriter(
-        output_dir_path / f"{row_group_id}.parquet", schema=schema
-    ) as writer:
-        # Read rows from each read row group using reshuffled local indexes
-        for rg_id, reshuffled_indexes in reshuffled_indexes_to_read:
-            writer.write(read_tables_per_row_group[rg_id].take(reshuffled_indexes))
+    # Read rows from each read row group using reshuffled local indexes
+    concatenated_tables = pa.concat_tables(
+        [
+            read_tables_per_row_group[rg_id].take(reshuffled_indexes)
+            for rg_id, reshuffled_indexes in reshuffled_indexes_to_read
+        ]
+    )
+    pq.write_table(table=concatenated_tables, where=output_dir_path / f"{row_group_id}.parquet")
 
 
 def _calculate_row_group_mapping(file_path: Path) -> dict[int, tuple[int, int]]:
