@@ -68,8 +68,7 @@ def sort_geoparquet_file_by_geometry(
     """
     if output_file_path is None:
         output_file_path = (
-            input_file_path.parent
-            / f"{input_file_path.stem}_sorted{input_file_path.suffix}"
+            input_file_path.parent / f"{input_file_path.stem}_sorted{input_file_path.suffix}"
         )
 
     assert input_file_path.resolve().as_posix() != output_file_path.resolve().as_posix()
@@ -79,9 +78,7 @@ def sort_geoparquet_file_by_geometry(
 
     Path(working_directory).mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory(
-        dir=Path(working_directory).resolve()
-    ) as tmp_dir_name:
+    with tempfile.TemporaryDirectory(dir=Path(working_directory).resolve()) as tmp_dir_name:
         tmp_dir_path = Path(tmp_dir_name)
         order_dir_path = tmp_dir_path / "ordered"
         order_dir_path.mkdir(parents=True, exist_ok=True)
@@ -100,9 +97,7 @@ def sort_geoparquet_file_by_geometry(
 
         input_file_path.unlink()
 
-        order_files = sorted(
-            order_dir_path.glob("*.parquet"), key=lambda x: int(x.stem)
-        )
+        order_files = sorted(order_dir_path.glob("*.parquet"), key=lambda x: int(x.stem))
 
         _run_query_with_memory_limit(
             tmp_dir_path=tmp_dir_path,
@@ -293,9 +288,7 @@ def _order_single_row_group(
         indexes_to_read_per_row_group[rg_id].append(local_index)
 
         if rg_id != current_rg_id:
-            reshuffled_indexes_to_read.append(
-                (current_rg_id, current_reshuffled_indexes_group)
-            )
+            reshuffled_indexes_to_read.append((current_rg_id, current_reshuffled_indexes_group))
             current_rg_id = rg_id
             current_reshuffled_indexes_group = [current_index_per_row_group[rg_id]]
         else:
@@ -304,15 +297,11 @@ def _order_single_row_group(
         current_index_per_row_group[rg_id] += 1
 
     if current_reshuffled_indexes_group:
-        reshuffled_indexes_to_read.append(
-            (current_rg_id, current_reshuffled_indexes_group)
-        )
+        reshuffled_indexes_to_read.append((current_rg_id, current_reshuffled_indexes_group))
 
     # Read expected rows per row group
     read_tables_per_row_group = {
-        rg_id: pq.ParquetFile(original_file_path)
-        .read_row_group(rg_id)
-        .take(local_rows_ids)
+        rg_id: pq.ParquetFile(original_file_path).read_row_group(rg_id).take(local_rows_ids)
         for rg_id, local_rows_ids in indexes_to_read_per_row_group.items()
     }
 
@@ -326,7 +315,8 @@ def _order_single_row_group(
                 for rg_id, reshuffled_indexes in reshuffled_indexes_to_read
             ]
         ),
-        where=output_dir_path / f"{row_group_id}.parquet", schema=schema
+        where=output_dir_path / f"{row_group_id}.parquet",
+        schema=schema,
     )
 
 
