@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Option to keep input after sorting with dedicated `remove_input_file` parameter
+
 ### Changed
 
 - Modified sorted parquet writing by manipulating loaded tables in memory instead of writing by chunk
