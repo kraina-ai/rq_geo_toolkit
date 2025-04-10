@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 import polars as pl
+import pyarrow as pa
 import pyarrow.parquet as pq
 
 from rq_geo_toolkit.constants import (
@@ -38,7 +39,8 @@ def sort_geoparquet_file_by_geometry(
     working_directory: Union[str, Path] = "files",
     verbosity_mode: "VERBOSITY_MODE" = "transient",
 ) -> Path:
-    """Sorts a GeoParquet file by the geometry column.
+    """
+    Sorts a GeoParquet file by the geometry column.
 
     Args:
         input_file_path (Path): Input GeoParquet file path.
@@ -315,12 +317,17 @@ def _order_single_row_group(
     }
 
     schema = pq.read_schema(original_file_path)
-    with pq.ParquetWriter(
-        output_dir_path / f"{row_group_id}.parquet", schema=schema
-    ) as writer:
-        # Read rows from each read row group using reshuffled local indexes
-        for rg_id, reshuffled_indexes in reshuffled_indexes_to_read:
-            writer.write(read_tables_per_row_group[rg_id].take(reshuffled_indexes))
+
+    pq.write_table(
+        table=pa.concat_tables(
+            [
+                # Read rows from each read row group using reshuffled local indexes
+                read_tables_per_row_group[rg_id].take(reshuffled_indexes)
+                for rg_id, reshuffled_indexes in reshuffled_indexes_to_read
+            ]
+        ),
+        where=output_dir_path / f"{row_group_id}.parquet", schema=schema
+    )
 
 
 def _calculate_row_group_mapping(file_path: Path) -> dict[int, tuple[int, int]]:
