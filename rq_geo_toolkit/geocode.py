@@ -55,8 +55,8 @@ def geocode_to_geometry(query: Union[str, list[str]]) -> BaseGeometry:
 
 
 def _get_first_polygon(results: list[Location]) -> Optional[dict[str, Any]]:
-    """Choose first result of geometry type (Multi)Polygon from list of
-    results.
+    """
+    Choose first result of geometry type (Multi)Polygon from list of results.
 
     Inspired by OSMnx implementation.
     """

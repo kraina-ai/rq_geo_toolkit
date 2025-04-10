@@ -1,16 +1,15 @@
 """Tests for dedicated geocoding function."""
 
 from typing import Union
-
-import pytest
-from osmnx.geocoder import geocode_to_gdf
 from unittest.mock import patch
 
+import pytest
 from geopy.geocoders.nominatim import Nominatim
+from osmnx.geocoder import geocode_to_gdf
 
-from rq_geo_toolkit.geocode import geocode_to_geometry
 from rq_geo_toolkit._exceptions import QueryNotGeocodedError
 from rq_geo_toolkit._geopandas_api_version import GEOPANDAS_NEW_API
+from rq_geo_toolkit.geocode import geocode_to_geometry
 
 
 @pytest.mark.parametrize(  # type: ignore
