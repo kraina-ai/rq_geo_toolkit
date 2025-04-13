@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2025.4.4] - 2025-04-13
+
 ### Fixed
 
 - Sorting geocoding results by importance after download from Nominatim
@@ -44,7 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Georelated constants
 - DuckDB initialization function
 
-[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.4.3...HEAD
+[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.4.4...HEAD
+[2025.4.4]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.4.3...2025.4.4
 [2025.4.3]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.4.2...2025.4.3
 [2025.4.2]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.4.1...2025.4.2
 [2025.4.1]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.4.0...2025.4.1
