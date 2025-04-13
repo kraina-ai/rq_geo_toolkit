@@ -15,6 +15,7 @@ from rq_geo_toolkit._exceptions import QueryNotGeocodedError
 
 USER_AGENT = "RQ Geo Toolkit Python package (https://github.com/kraina-ai/rq_geo_toolkit)"
 
+
 @overload
 def geocode_to_geometry(query: str) -> BaseGeometry: ...
 
@@ -34,9 +35,9 @@ def geocode_to_geometry(query: Union[str, list[str]]) -> BaseGeometry:
     query_file_path = Path("cache").resolve() / f"{query_hash}.json"
 
     if not query_file_path.exists():
-        query_results = Nominatim(
-            user_agent=USER_AGENT
-        ).geocode(query, geometry="geojson", exactly_one=False)
+        query_results = Nominatim(user_agent=USER_AGENT).geocode(
+            query, geometry="geojson", exactly_one=False
+        )
 
         if not query_results:
             raise QueryNotGeocodedError(f"Zero results from Nominatim for query '{query}'.")
@@ -62,7 +63,8 @@ def _get_first_polygon(results: list[Location]) -> Optional[dict[str, Any]]:
     """
     polygon_types = {"Polygon", "MultiPolygon"}
 
-    for result in results:
+    # sorting fix from https://github.com/gboeing/osmnx/pull/1290/files
+    for result in sorted(results, key=lambda location: location.raw["importance"], reverse=True):
         geojson_dict = cast(dict[str, Any], result.raw["geojson"])
         if geojson_dict["type"] in polygon_types:
             return geojson_dict
