@@ -179,12 +179,12 @@ def _sort_with_duckdb(
     sorted_relation = connection.sql(
         f"""
         SELECT input_data.* EXCLUDE (file_row_number)
-        FROM read_parquet(
+        FROM order_index
+        JOIN read_parquet(
             '{input_file_path}',
             hive_partitioning=false,
             file_row_number=true
-        ) input_data
-        JOIN order_index USING (file_row_number)
+        ) input_data USING (file_row_number)
         ORDER BY order_id
         """
     )
