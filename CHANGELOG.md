@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Simplified and refactored sorting by geometry
+
 ### Fixed
 
 - Sorting geocoding results by importance after download from Nominatim
