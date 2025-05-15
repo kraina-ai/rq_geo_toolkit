@@ -15,6 +15,7 @@ import pyarrow.parquet as pq
 from rich import print as rprint
 
 from rq_geo_toolkit.constants import (
+    MEMORY_1GB,
     PARQUET_COMPRESSION,
     PARQUET_COMPRESSION_LEVEL,
     PARQUET_ROW_GROUP_SIZE,
@@ -23,8 +24,6 @@ from rq_geo_toolkit.duckdb import set_up_duckdb_connection
 
 if TYPE_CHECKING:  # pragma: no cover
     from rq_geo_toolkit.rich_utils import VERBOSITY_MODE
-
-MEMORY_1GB = 1024**3
 
 
 def compress_parquet_with_duckdb(

@@ -5,21 +5,21 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 import pyarrow.parquet as pq
+from duckdb import OutOfMemoryException
+from rich import print as rprint
 
 from rq_geo_toolkit.constants import (
     PARQUET_COMPRESSION,
     PARQUET_COMPRESSION_LEVEL,
     PARQUET_ROW_GROUP_SIZE,
 )
-from rq_geo_toolkit.duckdb import set_up_duckdb_connection
+from rq_geo_toolkit.duckdb import run_query_with_memory_monitoring, set_up_duckdb_connection
 from rq_geo_toolkit.geoparquet_compression import (
     compress_parquet_with_duckdb,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
     from rq_geo_toolkit.rich_utils import VERBOSITY_MODE
-
-MEMORY_1GB = 1024**3
 
 
 def sort_geoparquet_file_by_geometry(
@@ -77,13 +77,15 @@ def sort_geoparquet_file_by_geometry(
     with tempfile.TemporaryDirectory(dir=Path(working_directory).resolve()) as tmp_dir_name:
         tmp_dir_path = Path(tmp_dir_name)
 
-        order_file_path = tmp_dir_path / "ordered.parquet"
+        order_dir_path = tmp_dir_path / "ordered"
+        order_dir_path.mkdir(parents=True, exist_ok=True)
 
         _sort_with_duckdb(
             input_file_path=input_file_path,
-            order_file_path=order_file_path,
+            output_dir_path=order_dir_path,
             sort_extent=sort_extent,
             tmp_dir_path=tmp_dir_path,
+            verbosity_mode=verbosity_mode,
         )
 
         original_metadata = pq.read_metadata(input_file_path)
@@ -91,8 +93,10 @@ def sort_geoparquet_file_by_geometry(
         if remove_input_file:
             input_file_path.unlink()
 
+        order_files = sorted(order_dir_path.glob("*.parquet"), key=lambda x: int(x.stem))
+
         compress_parquet_with_duckdb(
-            input_file_path=order_file_path,
+            input_file_path=order_files,
             output_file_path=output_file_path,
             compression=compression,
             compression_level=compression_level,
@@ -107,9 +111,10 @@ def sort_geoparquet_file_by_geometry(
 
 def _sort_with_duckdb(
     input_file_path: Path,
-    order_file_path: Path,
+    output_dir_path: Path,
     sort_extent: Optional[tuple[float, float, float, float]],
     tmp_dir_path: Path,
+    verbosity_mode: "VERBOSITY_MODE",
 ) -> None:
     connection = set_up_duckdb_connection(tmp_dir_path, preserve_insertion_order=True)
 
@@ -174,23 +179,49 @@ def _sort_with_duckdb(
         """
     )
 
-    relation.to_table("order_index")
+    index_file_path = tmp_dir_path / "order_index.parquet"
+    relation.to_parquet(str(index_file_path), compression="zstd")
 
-    sorted_relation = connection.sql(
-        f"""
-        SELECT input_data.* EXCLUDE (file_row_number)
-        FROM order_index
-        JOIN read_parquet(
-            '{input_file_path}',
-            hive_partitioning=false,
-            file_row_number=true
-        ) input_data USING (file_row_number)
-        ORDER BY order_id
-        """
-    )
-
-    sorted_relation.to_parquet(
-        str(order_file_path),
-    )
-
+    total_rows = connection.read_parquet(str(index_file_path)).count("*").fetchone()[0]
     connection.close()
+
+    current_file_idx = 0
+    current_offset = 0
+    current_limit = 10_000_000
+
+    while current_offset < total_rows:
+        try:
+            sql_query = f"""
+            COPY (
+                WITH order_batch AS (
+                    FROM read_parquet('{index_file_path}')
+                    LIMIT {current_limit} OFFSET {current_offset}
+                )
+                SELECT input_data.* EXCLUDE (file_row_number)
+                FROM order_batch
+                JOIN read_parquet(
+                    '{input_file_path}',
+                    hive_partitioning=false,
+                    file_row_number=true
+                ) input_data USING (file_row_number)
+                ORDER BY order_id
+            ) TO '{output_dir_path}/{current_file_idx}.parquet' (
+                FORMAT 'parquet'
+            )
+            """
+            run_query_with_memory_monitoring(
+                sql_query=sql_query, tmp_dir_path=tmp_dir_path, preserve_insertion_order=True
+            )
+
+            current_file_idx += 1
+            current_offset += current_limit
+        except (OutOfMemoryException, MemoryError) as ex:
+            current_limit //= 10
+            if current_limit == 1:
+                raise
+
+            if not verbosity_mode == "silent":
+                rprint(
+                    f"Encountered {ex.__class__.__name__} during operation."
+                    f" Retrying with lower number of rows per batch ({current_limit} rows)."
+                )
