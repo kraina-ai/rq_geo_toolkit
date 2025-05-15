@@ -185,6 +185,7 @@ def _sort_with_duckdb(
             file_row_number=true
         ) input_data
         JOIN order_index USING (file_row_number)
+        ORDER BY order_id
         """
     )
 
