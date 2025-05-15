@@ -50,5 +50,6 @@ def test_sorting() -> None:
         )
 
         assert pq.read_schema(unsorted_pq).equals(pq.read_schema(sorted_pq))
+        assert pq.read_metadata(unsorted_pq).num_rows == pq.read_metadata(sorted_pq).num_rows
 
         assert unsorted_pq.stat().st_size > sorted_pq.stat().st_size
