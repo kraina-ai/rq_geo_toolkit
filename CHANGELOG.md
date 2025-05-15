@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Changed
+
+- Simplified and refactored sorting by geometry
+
 ## [2025.5.0] - 2025-05-03
 
 ## [2025.4.4] - 2025-04-13

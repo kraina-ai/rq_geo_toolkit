@@ -30,10 +30,11 @@ def test_sorting() -> None:
     with tempfile.TemporaryDirectory(dir=save_path.parent.resolve()) as tmp_dir_name:
         tmp_dir_path = Path(tmp_dir_name)
 
-        with set_up_duckdb_connection(
-            tmp_dir_path=tmp_dir_path, preserve_insertion_order=True
-        ) as connection:
-            connection.execute(query)
+        if not save_path.exists():
+            with set_up_duckdb_connection(
+                tmp_dir_path=tmp_dir_path, preserve_insertion_order=True
+            ) as connection:
+                connection.execute(query)
 
         unsorted_pq = compress_parquet_with_duckdb(
             input_file_path=save_path,
@@ -45,8 +46,10 @@ def test_sorting() -> None:
             input_file_path=save_path,
             output_file_path=tmp_dir_path / "sorted.parquet",
             working_directory=tmp_dir_path,
+            remove_input_file=False,
         )
 
         assert pq.read_schema(unsorted_pq).equals(pq.read_schema(sorted_pq))
+        assert pq.read_metadata(unsorted_pq).num_rows == pq.read_metadata(sorted_pq).num_rows
 
         assert unsorted_pq.stat().st_size > sorted_pq.stat().st_size
