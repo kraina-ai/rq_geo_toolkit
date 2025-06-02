@@ -63,19 +63,19 @@ def compress_parquet_with_duckdb(
     is_single_path = isinstance(input_file_path, Path)
     if is_single_path:
         assert (
-            cast(Path, input_file_path).resolve().as_posix()
+            cast("Path", input_file_path).resolve().as_posix()
             != output_file_path.resolve().as_posix()
         )
 
     Path(working_directory).mkdir(parents=True, exist_ok=True)
 
     if is_single_path and pq.read_metadata(input_file_path).num_rows == 0:
-        return cast(Path, input_file_path).rename(output_file_path)
+        return cast("Path", input_file_path).rename(output_file_path)
 
     if is_single_path:
         sql_input_str = f"'{input_file_path}'"
     else:
-        mapped_paths = ", ".join(f"'{path}'" for path in cast(list[Path], input_file_path))
+        mapped_paths = ", ".join(f"'{path}'" for path in cast("list[Path]", input_file_path))
         sql_input_str = f"[{mapped_paths}]"
 
     parquet_metadata = parquet_metadata or pq.read_metadata(input_file_path)
