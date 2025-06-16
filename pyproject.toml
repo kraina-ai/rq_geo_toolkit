@@ -10,13 +10,9 @@ dependencies = [
     "shapely>=2.0.6",
     "pyarrow>=16.0.0",
     "rich>=12.0.0",
-    "geoarrow-rust-core>=0.3.0",
-    "pooch>=1.6.0",
     "geopy>=2.0.0",
-    "numpy>=1.26.0",
     "duckdb>=1.1.2",
     "psutil>=5.6.2",
-    "polars>=1.9",
     "packaging>=17.0",
 ]
 requires-python = ">=3.9"
