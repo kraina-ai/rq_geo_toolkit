@@ -65,7 +65,7 @@ def _get_first_polygon(results: list[Location]) -> Optional[dict[str, Any]]:
 
     # sorting fix from https://github.com/gboeing/osmnx/pull/1290/files
     for result in sorted(results, key=lambda location: location.raw["importance"], reverse=True):
-        geojson_dict = cast(dict[str, Any], result.raw["geojson"])
+        geojson_dict = cast("dict[str, Any]", result.raw["geojson"])
         if geojson_dict["type"] in polygon_types:
             return geojson_dict
 
