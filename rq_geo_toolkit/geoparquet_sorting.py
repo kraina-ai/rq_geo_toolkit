@@ -19,6 +19,8 @@ from rq_geo_toolkit.geoparquet_compression import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Callable
+
     from rq_geo_toolkit.rich_utils import VERBOSITY_MODE
 
 
@@ -32,6 +34,7 @@ def sort_geoparquet_file_by_geometry(
     working_directory: Union[str, Path] = "files",
     verbosity_mode: "VERBOSITY_MODE" = "transient",
     remove_input_file: bool = True,
+    progress_callback: Optional["Callable[[int], None]"] = None
 ) -> Path:
     """
     Sorts a GeoParquet file by the geometry column.
@@ -61,6 +64,8 @@ def sort_geoparquet_file_by_geometry(
             Verbose leaves all progress outputs in the stdout. Defaults to "transient".
         remove_input_file (bool, optional): Remove the original file after sorting.
             Defaults to True.
+        progress_callback (Callable[[int], None], optional): A callback for reporting sorting
+            progress. Will report current progress.
     """
     if output_file_path is None:
         output_file_path = (
@@ -86,6 +91,7 @@ def sort_geoparquet_file_by_geometry(
             sort_extent=sort_extent,
             tmp_dir_path=tmp_dir_path,
             verbosity_mode=verbosity_mode,
+            progress_callback=progress_callback,
         )
 
         original_metadata = pq.read_metadata(input_file_path)
@@ -115,6 +121,7 @@ def _sort_with_duckdb(
     sort_extent: Optional[tuple[float, float, float, float]],
     tmp_dir_path: Path,
     verbosity_mode: "VERBOSITY_MODE",
+    progress_callback: Optional["Callable[[int], None]"] = None
 ) -> None:
     connection = set_up_duckdb_connection(tmp_dir_path, preserve_insertion_order=True)
 
@@ -218,6 +225,9 @@ def _sort_with_duckdb(
 
             current_file_idx += 1
             current_offset += current_limit
+            if progress_callback:
+                progress_callback(min(current_offset, total_rows))
+
         except (OutOfMemoryException, MemoryError) as ex:
             current_limit //= 10
             if current_limit == 1:

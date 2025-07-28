@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 import pyarrow.parquet as pq
+from tqdm import tqdm
 
 from rq_geo_toolkit.duckdb import set_up_duckdb_connection
 from rq_geo_toolkit.geoparquet_compression import compress_parquet_with_duckdb
@@ -26,8 +27,19 @@ def test_sorting() -> None:
         USING SAMPLE 100%
     ) TO '{save_path}' (FORMAT parquet);
     """
+    total_rows = pq.read_metadata(save_path).num_rows
+    last_rows = 0
+    with (
+        tqdm(total=total_rows) as pbar,
+        tempfile.TemporaryDirectory(dir=save_path.parent.resolve()) as tmp_dir_name,
+    ):
 
-    with tempfile.TemporaryDirectory(dir=save_path.parent.resolve()) as tmp_dir_name:
+        def report_progress(n: int) -> None:
+            nonlocal last_rows, pbar
+            diff = n - last_rows
+            pbar.update(diff)
+            last_rows = n
+
         tmp_dir_path = Path(tmp_dir_name)
 
         if not save_path.exists():
@@ -47,6 +59,7 @@ def test_sorting() -> None:
             output_file_path=tmp_dir_path / "sorted.parquet",
             working_directory=tmp_dir_path,
             remove_input_file=False,
+            progress_callback=report_progress,
         )
 
         assert pq.read_schema(unsorted_pq).equals(pq.read_schema(sorted_pq))
