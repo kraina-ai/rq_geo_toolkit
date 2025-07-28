@@ -59,3 +59,14 @@ jobs:
             token: ${{ secrets.CODECOV_TOKEN }}
           attempt_limit: 100
           attempt_delay: 10000
+
+  run-low-resources-tests:
+    name: Run low resources test inside Docker
+    runs-on: ubuntu-latest
+    env:
+      COLUMNS: 120
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run test inside Docker
+        run: ./run_low_memory_test.sh
