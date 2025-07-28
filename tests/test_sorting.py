@@ -27,19 +27,7 @@ def test_sorting() -> None:
         USING SAMPLE 100%
     ) TO '{save_path}' (FORMAT parquet);
     """
-    total_rows = pq.read_metadata(save_path).num_rows
-    last_rows = 0
-    with (
-        tqdm(total=total_rows) as pbar,
-        tempfile.TemporaryDirectory(dir=save_path.parent.resolve()) as tmp_dir_name,
-    ):
-
-        def report_progress(n: int) -> None:
-            nonlocal last_rows, pbar
-            diff = n - last_rows
-            pbar.update(diff)
-            last_rows = n
-
+    with tempfile.TemporaryDirectory(dir=save_path.parent.resolve()) as tmp_dir_name:
         tmp_dir_path = Path(tmp_dir_name)
 
         if not save_path.exists():
@@ -49,18 +37,28 @@ def test_sorting() -> None:
                 connection.execute(query)
 
         unsorted_pq = compress_parquet_with_duckdb(
-            input_file_path=save_path,
-            output_file_path=tmp_dir_path / "unsorted.parquet",
-            working_directory=tmp_dir_path,
-        )
+                input_file_path=save_path,
+                output_file_path=tmp_dir_path / "unsorted.parquet",
+                working_directory=tmp_dir_path,
+            )
 
-        sorted_pq = sort_geoparquet_file_by_geometry(
-            input_file_path=save_path,
-            output_file_path=tmp_dir_path / "sorted.parquet",
-            working_directory=tmp_dir_path,
-            remove_input_file=False,
-            progress_callback=report_progress,
-        )
+        total_rows = pq.read_metadata(save_path).num_rows
+        last_rows = 0
+
+        with tqdm(total=total_rows) as pbar:
+            def report_progress(n: int) -> None:
+                nonlocal last_rows, pbar
+                diff = n - last_rows
+                pbar.update(diff)
+                last_rows = n
+
+            sorted_pq = sort_geoparquet_file_by_geometry(
+                input_file_path=save_path,
+                output_file_path=tmp_dir_path / "sorted.parquet",
+                working_directory=tmp_dir_path,
+                remove_input_file=False,
+                progress_callback=report_progress,
+            )
 
         assert pq.read_schema(unsorted_pq).equals(pq.read_schema(sorted_pq))
         assert pq.read_metadata(unsorted_pq).num_rows == pq.read_metadata(sorted_pq).num_rows
