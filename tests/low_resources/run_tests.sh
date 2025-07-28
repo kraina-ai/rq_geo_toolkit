@@ -5,4 +5,5 @@ coverage combine
 coverage xml -o coverage.xml
 coverage report -m
 codecov --verbose upload-process --disable-search --fail-on-error \
-    -F low-resources-test -f coverage.xml -C $GITHUB_SHA -t $CODECOV_TOKEN
+    -F low-resources-test -f coverage.xml -C $GITHUB_SHA -t $CODECOV_TOKEN \
+    --git-service github -B $GITHUB_REF -r $GITHUB_REPOSITORY
