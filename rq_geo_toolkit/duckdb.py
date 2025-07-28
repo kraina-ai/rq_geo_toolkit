@@ -101,7 +101,7 @@ def run_duckdb_query_function_with_memory_limit(
         except (duckdb.OutOfMemoryException, MemoryError) as ex:
             if current_threads_limit == 1 and current_memory_gb_limit < 1:
                 raise RuntimeError(
-                    "Not enough memory to run the ordering query. Please rerun without sorting."
+                    "Not enough memory to run the query."
                 ) from ex
             elif current_threads_limit > 1:
                 # First limit number of CPUs
@@ -120,7 +120,7 @@ def run_duckdb_query_function_with_memory_limit(
                     f" ({current_memory_gb_limit:.2f}GB, {current_threads_limit} threads)."
                 )
 
-    raise RuntimeError("Not enough memory to run the query. Please rerun without sorting.")
+    raise RuntimeError("Not enough memory to run the query.")
 
 
 def run_query_with_memory_monitoring(
