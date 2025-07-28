@@ -210,7 +210,10 @@ def _sort_with_duckdb(
             )
             """
             run_query_with_memory_monitoring(
-                sql_query=sql_query, tmp_dir_path=tmp_dir_path, preserve_insertion_order=True
+                sql_query=sql_query,
+                tmp_dir_path=tmp_dir_path,
+                verbosity_mode=verbosity_mode,
+                preserve_insertion_order=True,
             )
 
             current_file_idx += 1

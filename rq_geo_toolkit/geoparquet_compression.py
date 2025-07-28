@@ -1,26 +1,20 @@
 """Module for compressing GeoParquet files."""
 
-import multiprocessing
 import tempfile
-from collections.abc import Callable
-from functools import partial
-from math import ceil
 from pathlib import Path
-from time import sleep
-from typing import TYPE_CHECKING, Any, Optional, Union, cast
+from typing import TYPE_CHECKING, Optional, Union, cast
 
-import duckdb
-import psutil
 import pyarrow.parquet as pq
-from rich import print as rprint
 
 from rq_geo_toolkit.constants import (
-    MEMORY_1GB,
     PARQUET_COMPRESSION,
     PARQUET_COMPRESSION_LEVEL,
     PARQUET_ROW_GROUP_SIZE,
 )
-from rq_geo_toolkit.duckdb import set_up_duckdb_connection
+from rq_geo_toolkit.duckdb import (
+    run_duckdb_query_function_with_memory_limit,
+    set_up_duckdb_connection,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from rq_geo_toolkit.rich_utils import VERBOSITY_MODE
@@ -63,19 +57,19 @@ def compress_parquet_with_duckdb(
     is_single_path = isinstance(input_file_path, Path)
     if is_single_path:
         assert (
-            cast(Path, input_file_path).resolve().as_posix()
+            cast("Path", input_file_path).resolve().as_posix()
             != output_file_path.resolve().as_posix()
         )
 
     Path(working_directory).mkdir(parents=True, exist_ok=True)
 
     if is_single_path and pq.read_metadata(input_file_path).num_rows == 0:
-        return cast(Path, input_file_path).rename(output_file_path)
+        return cast("Path", input_file_path).rename(output_file_path)
 
     if is_single_path:
         sql_input_str = f"'{input_file_path}'"
     else:
-        mapped_paths = ", ".join(f"'{path}'" for path in cast(list[Path], input_file_path))
+        mapped_paths = ", ".join(f"'{path}'" for path in cast("list[Path]", input_file_path))
         sql_input_str = f"[{mapped_paths}]"
 
     parquet_metadata = parquet_metadata or pq.read_metadata(input_file_path)
@@ -136,7 +130,7 @@ def compress_query_with_duckdb(
 
         original_metadata_string = _parquet_schema_metadata_to_duckdb_kv_metadata(parquet_metadata)
 
-        _run_query_with_memory_limit(
+        run_duckdb_query_function_with_memory_limit(
             tmp_dir_path=tmp_dir_path,
             verbosity_mode=verbosity_mode,
             current_memory_gb_limit=None,
@@ -185,72 +179,6 @@ def _compress_with_memory_limit(
     )
 
     connection.close()
-
-
-def _run_query_with_memory_limit(
-    tmp_dir_path: Path,
-    verbosity_mode: "VERBOSITY_MODE",
-    current_memory_gb_limit: Optional[float],
-    current_threads_limit: Optional[int],
-    function: Callable[..., None],
-    args: Any,
-) -> tuple[float, int]:
-    current_memory_gb_limit = current_memory_gb_limit or ceil(
-        psutil.virtual_memory().total / MEMORY_1GB
-    )
-    current_threads_limit = current_threads_limit or multiprocessing.cpu_count()
-
-    while current_memory_gb_limit > 0:
-        try:
-            with (
-                tempfile.TemporaryDirectory(dir=Path(tmp_dir_path).resolve()) as tmp_dir_name,
-                multiprocessing.get_context("spawn").Pool() as pool,
-            ):
-                nested_tmp_dir_path = Path(tmp_dir_name)
-                r = pool.apply_async(
-                    func=partial(
-                        function,
-                        current_memory_gb_limit=current_memory_gb_limit,
-                        current_threads_limit=current_threads_limit,
-                        tmp_dir_path=nested_tmp_dir_path,
-                    ),
-                    args=args,
-                )
-                actual_memory = psutil.virtual_memory()
-                percentage_threshold = 95
-                if (actual_memory.total * 0.05) > MEMORY_1GB:
-                    percentage_threshold = (
-                        100 * (actual_memory.total - MEMORY_1GB) / actual_memory.total
-                    )
-                while not r.ready():
-                    actual_memory = psutil.virtual_memory()
-                    if actual_memory.percent > percentage_threshold:
-                        raise MemoryError()
-
-                    sleep(0.5)
-                r.get()
-            return current_memory_gb_limit, current_threads_limit
-        except (duckdb.OutOfMemoryException, MemoryError) as ex:
-            if current_memory_gb_limit < 1:
-                raise RuntimeError(
-                    "Not enough memory to run the ordering query. Please rerun without sorting."
-                ) from ex
-
-            if current_memory_gb_limit == 1:
-                current_memory_gb_limit /= 2
-            else:
-                current_memory_gb_limit = ceil(current_memory_gb_limit / 2)
-
-            current_threads_limit = ceil(current_threads_limit / 2)
-
-            if not verbosity_mode == "silent":
-                rprint(
-                    f"Encountered {ex.__class__.__name__} during operation."
-                    " Retrying with lower number of resources"
-                    f" ({current_memory_gb_limit:.2f}GB, {current_threads_limit} threads)."
-                )
-
-    raise RuntimeError("Not enough memory to run the query. Please rerun without sorting.")
 
 
 def _parquet_schema_metadata_to_duckdb_kv_metadata(
