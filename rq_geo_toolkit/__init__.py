@@ -9,4 +9,4 @@ in other libraries from the Kraina AI organization like
 QuackOSM and OvertureMaestro.
 """
 
-__version__ = "2025.6.1"
+__version__ = "2025.7.0"
