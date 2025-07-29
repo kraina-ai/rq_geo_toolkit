@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Automatic threads limiting asfter DuckDB OOM errors
+- Automatic threads limiting after DuckDB OOM errors
 - Progress reporting callback for sorting features
 - `WorkerProcess` class for multiprocessing usage
 
