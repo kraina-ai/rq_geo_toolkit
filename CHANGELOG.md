@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2025.7.0] - 2025-07-29
+
 ### Added
 
-- Automatic threads limiting asfter DuckDB OOM errors
+- Automatic threads limiting after DuckDB OOM errors
 - Progress reporting callback for sorting features
 - `WorkerProcess` class for multiprocessing usage
 
@@ -72,7 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Georelated constants
 - DuckDB initialization function
 
-[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.6.1...HEAD
+[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.7.0...HEAD
+[2025.7.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.6.1...2025.7.0
 [2025.6.1]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.6.0...2025.6.1
 [2025.6.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.5.1...2025.6.0
 [2025.5.1]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.5.0...2025.5.1
