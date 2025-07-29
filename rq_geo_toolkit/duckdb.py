@@ -78,13 +78,13 @@ def run_duckdb_query_function_with_memory_limit(
                 process.start()
                 actual_memory = psutil.virtual_memory()
                 percentage_threshold = 95
-                if (actual_memory.total * 0.05) > MEMORY_1GB:
+                if (actual_memory.total * 0.05) > MEMORY_1GB:  # pragma: no cover
                     percentage_threshold = (
                         100 * (actual_memory.total - MEMORY_1GB) / actual_memory.total
                     )
                 while process.is_alive():
                     actual_memory = psutil.virtual_memory()
-                    if actual_memory.percent > percentage_threshold:
+                    if actual_memory.percent > percentage_threshold:  # pragma: no cover
                         raise MemoryError()
 
                     sleep(0.5)
@@ -146,7 +146,7 @@ def _run_query(
     current_memory_gb_limit: float,
     current_threads_limit: int,
     tmp_dir_path: Path,
-) -> None:
+) -> None:  # pragma: no cover
     with (
         tempfile.TemporaryDirectory(dir=tmp_dir_path) as tmp_dir_name,
         set_up_duckdb_connection(

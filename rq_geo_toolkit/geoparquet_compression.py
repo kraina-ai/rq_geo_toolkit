@@ -14,6 +14,7 @@ from rq_geo_toolkit.constants import (
 from rq_geo_toolkit.duckdb import (
     run_duckdb_query_function_with_memory_limit,
     set_up_duckdb_connection,
+    sql_escape,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -184,13 +185,10 @@ def _compress_with_memory_limit(
 def _parquet_schema_metadata_to_duckdb_kv_metadata(
     parquet_file_metadata: pq.FileMetaData,
 ) -> str:
-    def escape_single_quotes(s: str) -> str:
-        return s.replace("'", "''")
-
     kv_pairs = []
     for key, value in parquet_file_metadata.metadata.items():
-        escaped_key = escape_single_quotes(key.decode())
-        escaped_value = escape_single_quotes(value.decode())
+        escaped_key = sql_escape(key.decode())
+        escaped_value = sql_escape(value.decode())
         kv_pairs.append(f"'{escaped_key}': '{escaped_value}'")
 
     return "{ " + ", ".join(kv_pairs) + " }"
