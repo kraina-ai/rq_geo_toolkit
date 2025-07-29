@@ -7,7 +7,7 @@ env:
 
 jobs:
   bump-n-pr:
-    name: Bump ⬆️ and create a Pull Request with a new library version (${{ inputs.bumpType }})
+    name: Bump ⬆️ and create a Pull Request with a new library version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
