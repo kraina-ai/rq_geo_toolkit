@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Automatic threads limiting asfter DuckDB OOM errors
+- Progress reporting callback for sorting features
+- `WorkerProcess` class for multiprocessing usage
+
 ## [2025.6.1] - 2025-06-16
 
 ### Changed

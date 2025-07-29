@@ -1,26 +1,21 @@
 """Module for compressing GeoParquet files."""
 
-import multiprocessing
 import tempfile
-from collections.abc import Callable
-from functools import partial
-from math import ceil
 from pathlib import Path
-from time import sleep
-from typing import TYPE_CHECKING, Any, Optional, Union, cast
+from typing import TYPE_CHECKING, Optional, Union, cast
 
-import duckdb
-import psutil
 import pyarrow.parquet as pq
-from rich import print as rprint
 
 from rq_geo_toolkit.constants import (
-    MEMORY_1GB,
     PARQUET_COMPRESSION,
     PARQUET_COMPRESSION_LEVEL,
     PARQUET_ROW_GROUP_SIZE,
 )
-from rq_geo_toolkit.duckdb import set_up_duckdb_connection
+from rq_geo_toolkit.duckdb import (
+    run_duckdb_query_function_with_memory_limit,
+    set_up_duckdb_connection,
+    sql_escape,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from rq_geo_toolkit.rich_utils import VERBOSITY_MODE
@@ -136,7 +131,7 @@ def compress_query_with_duckdb(
 
         original_metadata_string = _parquet_schema_metadata_to_duckdb_kv_metadata(parquet_metadata)
 
-        _run_query_with_memory_limit(
+        run_duckdb_query_function_with_memory_limit(
             tmp_dir_path=tmp_dir_path,
             verbosity_mode=verbosity_mode,
             current_memory_gb_limit=None,
@@ -187,82 +182,13 @@ def _compress_with_memory_limit(
     connection.close()
 
 
-def _run_query_with_memory_limit(
-    tmp_dir_path: Path,
-    verbosity_mode: "VERBOSITY_MODE",
-    current_memory_gb_limit: Optional[float],
-    current_threads_limit: Optional[int],
-    function: Callable[..., None],
-    args: Any,
-) -> tuple[float, int]:
-    current_memory_gb_limit = current_memory_gb_limit or ceil(
-        psutil.virtual_memory().total / MEMORY_1GB
-    )
-    current_threads_limit = current_threads_limit or multiprocessing.cpu_count()
-
-    while current_memory_gb_limit > 0:
-        try:
-            with (
-                tempfile.TemporaryDirectory(dir=Path(tmp_dir_path).resolve()) as tmp_dir_name,
-                multiprocessing.get_context("spawn").Pool() as pool,
-            ):
-                nested_tmp_dir_path = Path(tmp_dir_name)
-                r = pool.apply_async(
-                    func=partial(
-                        function,
-                        current_memory_gb_limit=current_memory_gb_limit,
-                        current_threads_limit=current_threads_limit,
-                        tmp_dir_path=nested_tmp_dir_path,
-                    ),
-                    args=args,
-                )
-                actual_memory = psutil.virtual_memory()
-                percentage_threshold = 95
-                if (actual_memory.total * 0.05) > MEMORY_1GB:
-                    percentage_threshold = (
-                        100 * (actual_memory.total - MEMORY_1GB) / actual_memory.total
-                    )
-                while not r.ready():
-                    actual_memory = psutil.virtual_memory()
-                    if actual_memory.percent > percentage_threshold:
-                        raise MemoryError()
-
-                    sleep(0.5)
-                r.get()
-            return current_memory_gb_limit, current_threads_limit
-        except (duckdb.OutOfMemoryException, MemoryError) as ex:
-            if current_memory_gb_limit < 1:
-                raise RuntimeError(
-                    "Not enough memory to run the ordering query. Please rerun without sorting."
-                ) from ex
-
-            if current_memory_gb_limit == 1:
-                current_memory_gb_limit /= 2
-            else:
-                current_memory_gb_limit = ceil(current_memory_gb_limit / 2)
-
-            current_threads_limit = ceil(current_threads_limit / 2)
-
-            if not verbosity_mode == "silent":
-                rprint(
-                    f"Encountered {ex.__class__.__name__} during operation."
-                    " Retrying with lower number of resources"
-                    f" ({current_memory_gb_limit:.2f}GB, {current_threads_limit} threads)."
-                )
-
-    raise RuntimeError("Not enough memory to run the query. Please rerun without sorting.")
-
-
 def _parquet_schema_metadata_to_duckdb_kv_metadata(
     parquet_file_metadata: pq.FileMetaData,
 ) -> str:
-    def escape_single_quotes(s: str) -> str:
-        return s.replace("'", "''")
-
     kv_pairs = []
     for key, value in parquet_file_metadata.metadata.items():
-        escaped_key = escape_single_quotes(key.decode())
-        escaped_value = escape_single_quotes(value.decode())
+        escaped_key = sql_escape(key.decode())
+        escaped_value = sql_escape(value.decode())
         kv_pairs.append(f"'{escaped_key}': '{escaped_value}'")
 
     return "{ " + ", ".join(kv_pairs) + " }"
