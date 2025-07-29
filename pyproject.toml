@@ -44,6 +44,7 @@ test = [
     "osmnx>=1.3.0",
     "tqdm>=4.67.1",
 ]
+license = ["licensecheck==2025.1.0", "pipdeptree"]
 
 [tool.pdm.scripts]
 post_install = "pre-commit install"
