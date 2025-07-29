@@ -73,8 +73,8 @@ jobs:
         shell: bash
         run: |
           echo "LAST_COMMIT_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
-      - name: Setup Environment (Push)
-        if: ${{ github.event_name == 'push' }}
+      - name: Setup Environment (Push & other)
+        if: ${{ github.event_name != 'pull_request' }}
         shell: bash
         run: |
           echo "LAST_COMMIT_SHA=${GITHUB_SHA}" >> ${GITHUB_ENV}
