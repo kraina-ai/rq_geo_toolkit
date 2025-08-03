@@ -20,6 +20,7 @@ from rq_geo_toolkit.multiprocessing_utils import WorkerProcess
 if TYPE_CHECKING:  # pragma: no cover
     from rq_geo_toolkit.rich_utils import VERBOSITY_MODE
 
+
 def sql_escape(value: str) -> str:
     """Escape value for SQL query."""
     return value.replace("'", "''")
@@ -60,7 +61,7 @@ def run_duckdb_query_function_with_memory_limit(
         or duckdb.sql("SELECT current_setting('threads') AS threads").fetchone()[0]
     )
 
-    while current_threads_limit > 1:
+    while True:
         try:
             with tempfile.TemporaryDirectory(dir=Path(tmp_dir_path).resolve()) as tmp_dir_name:
                 nested_tmp_dir_path = Path(tmp_dir_name)
@@ -85,6 +86,7 @@ def run_duckdb_query_function_with_memory_limit(
                 while process.is_alive():
                     actual_memory = psutil.virtual_memory()
                     if actual_memory.percent > percentage_threshold:  # pragma: no cover
+                        process.terminate()
                         raise MemoryError()
 
                     sleep(0.5)
@@ -100,9 +102,7 @@ def run_duckdb_query_function_with_memory_limit(
             return current_memory_gb_limit, current_threads_limit
         except (duckdb.OutOfMemoryException, MemoryError) as ex:
             if current_threads_limit == 1 and current_memory_gb_limit < 1:
-                raise MemoryError(
-                    "Not enough memory to run the query."
-                ) from ex
+                raise MemoryError("Not enough memory to run the query.") from ex
             elif current_threads_limit > 1:
                 # First limit number of CPUs
                 current_threads_limit = ceil(current_threads_limit / 2)
@@ -112,6 +112,11 @@ def run_duckdb_query_function_with_memory_limit(
             elif current_memory_gb_limit == 1:
                 # Reduce memory below 1 GB
                 current_memory_gb_limit /= 2
+            else:
+                raise RuntimeError(
+                    "Not expected error during resources checking "
+                    f"({current_memory_gb_limit:.2f}GB, {current_threads_limit} threads)."
+                ) from ex
 
             if not verbosity_mode == "silent":
                 rprint(
@@ -119,8 +124,6 @@ def run_duckdb_query_function_with_memory_limit(
                     " Retrying with lower number of resources"
                     f" ({current_memory_gb_limit:.2f}GB, {current_threads_limit} threads)."
                 )
-
-    raise MemoryError("Not enough memory to run the query.")
 
 
 def run_query_with_memory_monitoring(
