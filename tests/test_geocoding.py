@@ -1,5 +1,6 @@
 """Tests for dedicated geocoding function."""
 
+
 from typing import Union
 from unittest.mock import patch
 

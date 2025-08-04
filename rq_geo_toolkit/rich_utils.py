@@ -1,5 +1,6 @@
 """Constant variables related to the rich library."""
 
+
 import os
 from typing import Literal
 

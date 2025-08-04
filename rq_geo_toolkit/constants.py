@@ -1,5 +1,6 @@
 """Constant values used inside the library and for external use."""
 
+
 GEOMETRY_COLUMN = "geometry"
 
 PARQUET_ROW_GROUP_SIZE = 100_000

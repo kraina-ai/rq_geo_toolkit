@@ -1,5 +1,6 @@
 """Tests for sorting and compressing geoparquet files."""
 
+
 import tempfile
 from pathlib import Path
 

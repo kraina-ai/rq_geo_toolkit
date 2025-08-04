@@ -1,5 +1,6 @@
 """Utilities for multiprocessing."""
 
+
 import multiprocessing
 import traceback
 from typing import Any, Optional
@@ -7,6 +8,7 @@ from typing import Any, Optional
 
 class WorkerProcess(multiprocessing.Process):
     """Dedicated class for running processes with catching exceptions."""
+
     def __init__(self, *args: Any, **kwargs: Any):
         """Initialize the process."""
         multiprocessing.Process.__init__(self, *args, **kwargs)
