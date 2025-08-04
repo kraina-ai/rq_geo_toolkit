@@ -1,5 +1,6 @@
 """Module for compressing GeoParquet files."""
 
+
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union, cast

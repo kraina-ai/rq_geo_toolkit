@@ -1,5 +1,6 @@
 """Geocoding module for getting a geometry from query using Nominatim."""
 
+
 import hashlib
 import json
 from pathlib import Path

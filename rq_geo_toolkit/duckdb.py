@@ -1,5 +1,6 @@
 """Helper functions for DuckDB."""
 
+
 import tempfile
 from collections.abc import Callable
 from functools import partial
