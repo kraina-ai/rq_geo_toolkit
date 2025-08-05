@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2025.8.1] - 2025-08-05
 
+### Fixed
+
+- Added graceful subprocess termination if memory error is raised from the main process
+
 ## [2025.8.0] - 2025-08-03
 
 ### Fixed
