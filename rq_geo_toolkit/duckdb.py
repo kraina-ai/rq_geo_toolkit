@@ -87,6 +87,7 @@ def run_duckdb_query_function_with_memory_limit(
                     actual_memory = psutil.virtual_memory()
                     if actual_memory.percent > percentage_threshold:  # pragma: no cover
                         process.terminate()
+                        process.join()
                         raise MemoryError()
 
                     sleep(0.5)
