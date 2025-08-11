@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2025.8.3] - 2025-08-11
+
 ### Fixed
 
 - Add support for compression level only for `zstd` compression
@@ -96,7 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Georelated constants
 - DuckDB initialization function
 
-[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.2...HEAD
+[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.3...HEAD
+[2025.8.3]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.2...2025.8.3
 [2025.8.2]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.1...2025.8.2
 [2025.8.1]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.0...2025.8.1
 [2025.8.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.7.0...2025.8.0
