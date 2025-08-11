@@ -13,6 +13,7 @@ from rq_geo_toolkit.constants import (
     PARQUET_VERSION,
 )
 from rq_geo_toolkit.duckdb import (
+    DUCKDB_ABOVE_130,
     run_duckdb_query_function_with_memory_limit,
     set_up_duckdb_connection,
     sql_escape,
@@ -177,11 +178,12 @@ def _compress_with_memory_limit(
     connection.execute(f"SET memory_limit = '{current_memory_gb_limit}GB';")
     connection.execute(f"SET threads = {current_threads_limit};")
 
+    parquet_version_query = f"PARQUET_VERSION {parquet_version}," if DUCKDB_ABOVE_130 else ""
     connection.execute(
         f"""
         COPY ({query}) TO '{output_file_path}' (
             FORMAT parquet,
-            PARQUET_VERSION {parquet_version},
+            {parquet_version_query}
             COMPRESSION {compression},
             COMPRESSION_LEVEL {compression_level},
             ROW_GROUP_SIZE {row_group_size},
