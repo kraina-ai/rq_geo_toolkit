@@ -180,7 +180,7 @@ def _compress_with_memory_limit(
 
     parquet_version_query = f"PARQUET_VERSION {parquet_version}," if DUCKDB_ABOVE_130 else ""
     compression_level_query = (
-        "COMPRESSION_LEVEL {compression_level}," if compression == "zstd" else ""
+        f"COMPRESSION_LEVEL {compression_level}," if compression == "zstd" else ""
     )
     connection.execute(
         f"""
