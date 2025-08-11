@@ -2,7 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union, cast
+from typing import TYPE_CHECKING, Literal, Optional, Union, cast
 
 import pyarrow.parquet as pq
 
@@ -10,6 +10,7 @@ from rq_geo_toolkit.constants import (
     PARQUET_COMPRESSION,
     PARQUET_COMPRESSION_LEVEL,
     PARQUET_ROW_GROUP_SIZE,
+    PARQUET_VERSION,
 )
 from rq_geo_toolkit.duckdb import (
     run_duckdb_query_function_with_memory_limit,
@@ -27,6 +28,7 @@ def compress_parquet_with_duckdb(
     compression: str = PARQUET_COMPRESSION,
     compression_level: int = PARQUET_COMPRESSION_LEVEL,
     row_group_size: int = PARQUET_ROW_GROUP_SIZE,
+    parquet_version: Literal["v1", "v2"] = PARQUET_VERSION,
     working_directory: Union[str, Path] = "files",
     parquet_metadata: Optional[pq.FileMetaData] = None,
     verbosity_mode: "VERBOSITY_MODE" = "transient",
@@ -46,6 +48,8 @@ def compress_parquet_with_duckdb(
             Defaults to 3.
         row_group_size (int, optional): Approximate number of rows per row group in the final
             parquet file. Defaults to 100_000.
+        parquet_version (Literal["v1", "v2"], optional): What type of parquet version use to
+            save final file. Defaults to "v2".
         working_directory (Union[str, Path], optional): Directory where to save
             the downloaded `*.parquet` files. Defaults to "files".
         parquet_metadata (Optional[pq.FileMetaData], optional): GeoParquet file metadata used to
@@ -87,6 +91,7 @@ def compress_parquet_with_duckdb(
         compression=compression,
         compression_level=compression_level,
         row_group_size=row_group_size,
+        parquet_version=parquet_version,
         working_directory=working_directory,
         verbosity_mode=verbosity_mode,
     )
@@ -99,6 +104,7 @@ def compress_query_with_duckdb(
     compression: str = PARQUET_COMPRESSION,
     compression_level: int = PARQUET_COMPRESSION_LEVEL,
     row_group_size: int = PARQUET_ROW_GROUP_SIZE,
+    parquet_version: Literal["v1", "v2"] = PARQUET_VERSION,
     working_directory: Union[str, Path] = "files",
     verbosity_mode: "VERBOSITY_MODE" = "transient",
 ) -> Path:
@@ -119,6 +125,8 @@ def compress_query_with_duckdb(
             Defaults to 3.
         row_group_size (int, optional): Approximate number of rows per row group in the final
             parquet file. Defaults to 100_000.
+        parquet_version (Literal["v1", "v2"], optional): What type of parquet version use to
+            save final file. Defaults to "v2".
         working_directory (Union[str, Path], optional): Directory where to save
             the downloaded `*.parquet` files. Defaults to "files".
         verbosity_mode (Literal["silent", "transient", "verbose"], optional): Set progress
@@ -144,6 +152,7 @@ def compress_query_with_duckdb(
                 compression,
                 compression_level,
                 row_group_size,
+                parquet_version,
             ),
         )
 
@@ -157,6 +166,7 @@ def _compress_with_memory_limit(
     compression: str,
     compression_level: int,
     row_group_size: int,
+    parquet_version: str,
     current_memory_gb_limit: float,
     current_threads_limit: int,
     tmp_dir_path: Path,
@@ -171,6 +181,7 @@ def _compress_with_memory_limit(
         f"""
         COPY ({query}) TO '{output_file_path}' (
             FORMAT parquet,
+            PARQUET_VERSION {parquet_version},
             COMPRESSION {compression},
             COMPRESSION_LEVEL {compression_level},
             ROW_GROUP_SIZE {row_group_size},

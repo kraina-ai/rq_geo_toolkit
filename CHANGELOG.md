@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Default `PARQUET_VERSION` from `v1` to `v2` with option to specify manually
+
 ## [2025.8.1] - 2025-08-05
 
 ### Fixed
