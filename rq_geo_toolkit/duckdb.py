@@ -10,16 +10,17 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 import duckdb
 import psutil
+from packaging import version
 from rich import print as rprint
 
-from rq_geo_toolkit.constants import (
-    MEMORY_1GB,
-)
+from rq_geo_toolkit.constants import MEMORY_1GB
 from rq_geo_toolkit.multiprocessing_utils import WorkerProcess
 
 if TYPE_CHECKING:  # pragma: no cover
     from rq_geo_toolkit.rich_utils import VERBOSITY_MODE
 
+
+DUCKDB_ABOVE_130 = version.parse(duckdb.__version__) >= version.parse("1.3.0")
 
 def sql_escape(value: str) -> str:
     """Escape value for SQL query."""
