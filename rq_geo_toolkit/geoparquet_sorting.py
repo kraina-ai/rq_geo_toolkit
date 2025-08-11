@@ -55,7 +55,7 @@ def sort_geoparquet_file_by_geometry(
             Defaults to "zstd".
         compression_level (int, optional): Compression level of the final parquet file.
             Check https://duckdb.org/docs/sql/statements/copy#parquet-options for more info.
-            Defaults to 3.
+            Supported only for zstd compression. Defaults to 3.
         row_group_size (int, optional): Approximate number of rows per row group in the final
             parquet file. Defaults to 100_000.
         parquet_version (Literal["v1", "v2"], optional): What type of parquet version use to

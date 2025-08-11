@@ -46,7 +46,7 @@ def compress_parquet_with_duckdb(
             Defaults to "zstd".
         compression_level (int, optional): Compression level of the final parquet file.
             Check https://duckdb.org/docs/sql/statements/copy#parquet-options for more info.
-            Defaults to 3.
+            Supported only for zstd compression. Defaults to 3.
         row_group_size (int, optional): Approximate number of rows per row group in the final
             parquet file. Defaults to 100_000.
         parquet_version (Literal["v1", "v2"], optional): What type of parquet version use to
@@ -123,7 +123,7 @@ def compress_query_with_duckdb(
             Defaults to "zstd".
         compression_level (int, optional): Compression level of the final parquet file.
             Check https://duckdb.org/docs/sql/statements/copy#parquet-options for more info.
-            Defaults to 3.
+            Supported only for zstd compression. Defaults to 3.
         row_group_size (int, optional): Approximate number of rows per row group in the final
             parquet file. Defaults to 100_000.
         parquet_version (Literal["v1", "v2"], optional): What type of parquet version use to
@@ -179,13 +179,16 @@ def _compress_with_memory_limit(
     connection.execute(f"SET threads = {current_threads_limit};")
 
     parquet_version_query = f"PARQUET_VERSION {parquet_version}," if DUCKDB_ABOVE_130 else ""
+    compression_level_query = (
+        "COMPRESSION_LEVEL {compression_level}," if compression == "zstd" else ""
+    )
     connection.execute(
         f"""
         COPY ({query}) TO '{output_file_path}' (
             FORMAT parquet,
             {parquet_version_query}
             COMPRESSION {compression},
-            COMPRESSION_LEVEL {compression_level},
+            {compression_level_query}
             ROW_GROUP_SIZE {row_group_size},
             KV_METADATA {original_metadata_string}
         );
