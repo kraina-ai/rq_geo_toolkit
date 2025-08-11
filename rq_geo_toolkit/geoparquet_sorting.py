@@ -2,7 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Literal, Optional, Union
 
 import pyarrow.parquet as pq
 from duckdb import OutOfMemoryException
@@ -12,6 +12,7 @@ from rq_geo_toolkit.constants import (
     PARQUET_COMPRESSION,
     PARQUET_COMPRESSION_LEVEL,
     PARQUET_ROW_GROUP_SIZE,
+    PARQUET_VERSION,
 )
 from rq_geo_toolkit.duckdb import run_query_with_memory_monitoring, set_up_duckdb_connection
 from rq_geo_toolkit.geoparquet_compression import (
@@ -31,6 +32,7 @@ def sort_geoparquet_file_by_geometry(
     compression: str = PARQUET_COMPRESSION,
     compression_level: int = PARQUET_COMPRESSION_LEVEL,
     row_group_size: int = PARQUET_ROW_GROUP_SIZE,
+    parquet_version: Literal["v1", "v2"] = PARQUET_VERSION,
     working_directory: Union[str, Path] = "files",
     verbosity_mode: "VERBOSITY_MODE" = "transient",
     remove_input_file: bool = True,
@@ -56,6 +58,8 @@ def sort_geoparquet_file_by_geometry(
             Defaults to 3.
         row_group_size (int, optional): Approximate number of rows per row group in the final
             parquet file. Defaults to 100_000.
+        parquet_version (Literal["v1", "v2"], optional): What type of parquet version use to
+            save final file. Defaults to "v2".
         working_directory (Union[str, Path], optional): Directory where to save
             the downloaded `*.parquet` files. Defaults to "files".
         verbosity_mode (Literal["silent", "transient", "verbose"], optional): Set progress
@@ -107,6 +111,7 @@ def sort_geoparquet_file_by_geometry(
             compression=compression,
             compression_level=compression_level,
             row_group_size=row_group_size,
+            parquet_version=parquet_version,
             working_directory=tmp_dir_path,
             parquet_metadata=original_metadata,
             verbosity_mode=verbosity_mode,
