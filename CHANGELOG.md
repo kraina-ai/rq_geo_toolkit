@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Gradually increase sleep time for short sql operations
+
 ## [2025.8.4] - 2025-08-18
 
 ### Changed
