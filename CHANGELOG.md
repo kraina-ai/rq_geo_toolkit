@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Removed unnecessary sleep call
+- Reordered `run_duckdb_query_function_with_memory_limit` function arguments and added default values
+
 ## [2025.8.3] - 2025-08-11
 
 ### Fixed

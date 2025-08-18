@@ -47,11 +47,11 @@ def set_up_duckdb_connection(
 
 def run_duckdb_query_function_with_memory_limit(
     tmp_dir_path: Path,
-    verbosity_mode: "VERBOSITY_MODE",
-    current_memory_gb_limit: Optional[float],
-    current_threads_limit: Optional[int],
     function: Callable[..., None],
     args: Any,
+    verbosity_mode: "VERBOSITY_MODE" = "verbose",
+    current_memory_gb_limit: Optional[float] = None,
+    current_threads_limit: Optional[int] = None,
 ) -> tuple[float, int]:
     """Run function with duckdb query and limit threads automatically."""
     current_memory_gb_limit = current_memory_gb_limit or ceil(
@@ -66,7 +66,6 @@ def run_duckdb_query_function_with_memory_limit(
         try:
             with tempfile.TemporaryDirectory(dir=Path(tmp_dir_path).resolve()) as tmp_dir_name:
                 nested_tmp_dir_path = Path(tmp_dir_name)
-                sleep(0.5)
                 f = partial(
                     function,
                     current_memory_gb_limit=current_memory_gb_limit,
@@ -131,7 +130,7 @@ def run_duckdb_query_function_with_memory_limit(
 def run_query_with_memory_monitoring(
     sql_query: str,
     tmp_dir_path: Path,
-    verbosity_mode: "VERBOSITY_MODE",
+    verbosity_mode: "VERBOSITY_MODE" = "verbose",
     preserve_insertion_order: bool = False,
 ) -> None:
     """Run SQL query and raise exception if memory threshold is exceeded."""
