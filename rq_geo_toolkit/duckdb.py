@@ -154,7 +154,7 @@ def run_query_with_memory_monitoring(
         preserve_insertion_order (bool, optional): Whether to keep operations in order.
             Used only with external process. Defaults to False.
     """
-    if tmp_dir_path is None and connection is None:
+    if tmp_dir_path is connection is None:
         raise ValueError("Must pass tmp_dir_path or connection.")
 
     if tmp_dir_path is not None and connection is not None:
