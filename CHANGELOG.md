@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Option to run DuckDB query with resources monitoring for an existing connection
+
 ### Changed
 
 - Gradually increase sleep time for short sql operations
