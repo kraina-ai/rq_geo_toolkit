@@ -1,6 +1,6 @@
 [project]
 name = "rq_geo_toolkit"
-version = "2025.8.5"
+version = "2025.8.6"
 description = "Collection of geo related functions for reuse in other libraries"
 authors = [
     {name = "Kamil Raczycki", email = ""},
@@ -110,7 +110,7 @@ close-quotes-on-newline = true
 wrap-one-line = true
 
 [tool.bumpver]
-current_version = "2025.8.5"
+current_version = "2025.8.6"
 version_pattern = "YYYY.MM.INC0"
 commit_message = "chore(CI/CD): bump version {old_version} -> {new_version}"
 commit = true
