@@ -207,7 +207,7 @@ def run_query_with_memory_monitoring(
 
                     if query_execution_future.cancelled():
                         raise MemoryError()
-                
+
                 return
 
             except (duckdb.OutOfMemoryException, MemoryError) as ex:
