@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Added return to the while loop in local duckdb query execution
+
 ## [2025.8.5] - 2025-08-20
 
 ### Added
