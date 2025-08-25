@@ -15,7 +15,7 @@ from packaging import version
 from rich import print as rprint
 
 from rq_geo_toolkit.constants import MEMORY_1GB
-from rq_geo_toolkit.multiprocessing_utils import WorkerProcess
+from rq_geo_toolkit.multiprocessing_utils import WorkerProcess, run_process_with_memory_monitoring
 
 if TYPE_CHECKING:  # pragma: no cover
     from rq_geo_toolkit.rich_utils import VERBOSITY_MODE
@@ -78,32 +78,7 @@ def run_duckdb_query_function_with_memory_limit(
                     target=f,
                     args=args,
                 )
-                process.start()
-                actual_memory = psutil.virtual_memory()
-                percentage_threshold = 95
-                if (actual_memory.total * 0.05) > MEMORY_1GB:  # pragma: no cover
-                    percentage_threshold = (
-                        100 * (actual_memory.total - MEMORY_1GB) / actual_memory.total
-                    )
-
-                sleep_time = 0.1
-                while process.is_alive():
-                    actual_memory = psutil.virtual_memory()
-                    if actual_memory.percent > percentage_threshold:  # pragma: no cover
-                        process.terminate()
-                        process.join()
-                        raise MemoryError()
-
-                    sleep(sleep_time)
-                    sleep_time = min(sleep_time + 0.1, 1.0)
-
-                if process.exception:
-                    error, traceback = process.exception
-                    msg = f"{error}\n\nOriginal {traceback}"
-                    raise type(error)(msg)
-
-                if process.exitcode != 0:
-                    raise MemoryError()
+                run_process_with_memory_monitoring(process)
 
             return current_memory_gb_limit, current_threads_limit
         except (duckdb.OutOfMemoryException, MemoryError) as ex:

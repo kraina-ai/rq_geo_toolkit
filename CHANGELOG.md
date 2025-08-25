@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Dedicated function `run_process_with_memory_monitoring` for running process with memory monitoring
+
 ## [2025.8.6] - 2025-08-24
 
 ### Fixed
