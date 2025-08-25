@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2025.8.7] - 2025-08-25
+
 ### Added
 
 - Dedicated function `run_process_with_memory_monitoring` for running process with memory monitoring
@@ -125,7 +127,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Georelated constants
 - DuckDB initialization function
 
-[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.6...HEAD
+[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.7...HEAD
+[2025.8.7]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.6...2025.8.7
 [2025.8.6]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.5...2025.8.6
 [2025.8.5]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.4...2025.8.5
 [2025.8.4]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.3...2025.8.4
