@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Option to disable memory limiting and only limit number of threads for DuckDB queries
+
 ## [2025.8.7] - 2025-08-25
 
 ### Added
