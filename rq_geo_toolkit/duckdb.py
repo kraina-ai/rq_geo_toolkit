@@ -52,8 +52,9 @@ def run_duckdb_query_function_with_memory_limit(
     function: Callable[..., None],
     args: Any,
     verbosity_mode: "VERBOSITY_MODE" = "verbose",
-    current_memory_gb_limit: Optional[float] = None,
     current_threads_limit: Optional[int] = None,
+    current_memory_gb_limit: Optional[float] = None,
+    limit_memory: bool = True,
 ) -> tuple[float, int]:
     """Run function with duckdb query and limit threads automatically."""
     current_memory_gb_limit = current_memory_gb_limit or ceil(
@@ -82,15 +83,15 @@ def run_duckdb_query_function_with_memory_limit(
 
             return current_memory_gb_limit, current_threads_limit
         except (duckdb.OutOfMemoryException, MemoryError) as ex:
-            if current_threads_limit == 1 and current_memory_gb_limit < 1:
+            if current_threads_limit == 1 and (current_memory_gb_limit < 1 or not limit_memory):
                 raise MemoryError("Not enough memory to run the query.") from ex
             elif current_threads_limit > 1:
                 # First limit number of CPUs
                 current_threads_limit = ceil(current_threads_limit / 2)
-            elif current_memory_gb_limit > 1:
+            elif limit_memory and current_memory_gb_limit > 1:
                 # Next limit memory
                 current_memory_gb_limit = ceil(current_memory_gb_limit / 2)
-            elif current_memory_gb_limit == 1:
+            elif limit_memory and current_memory_gb_limit == 1:
                 # Reduce memory below 1 GB
                 current_memory_gb_limit /= 2
             else:
@@ -113,6 +114,7 @@ def run_query_with_memory_monitoring(
     connection: Optional[duckdb.DuckDBPyConnection] = None,
     verbosity_mode: "VERBOSITY_MODE" = "verbose",
     preserve_insertion_order: bool = False,
+    limit_memory: bool = True,
 ) -> None:
     """
     Run SQL query and raise exception if memory threshold is exceeded.
@@ -128,6 +130,8 @@ def run_query_with_memory_monitoring(
         verbosity_mode (VERBOSITY_MODE, optional): Log level. Defaults to "verbose".
         preserve_insertion_order (bool, optional): Whether to keep operations in order.
             Used only with external process. Defaults to False.
+        limit_memory (bool, optional): Whether to automatically limit memory for DuckDB.
+            Defaults to True.
     """
     if tmp_dir_path is connection is None:
         raise ValueError("Must pass tmp_dir_path or connection.")
@@ -141,6 +145,7 @@ def run_query_with_memory_monitoring(
             verbosity_mode=verbosity_mode,
             current_memory_gb_limit=None,
             current_threads_limit=None,
+            limit_memory=limit_memory,
             function=_run_query,
             args=(sql_query, preserve_insertion_order),
         )
@@ -186,15 +191,15 @@ def run_query_with_memory_monitoring(
                 return
 
             except (duckdb.OutOfMemoryException, MemoryError) as ex:
-                if current_threads_limit == 2 and current_memory_gb_limit < 1:
+                if current_threads_limit == 2 and (current_memory_gb_limit < 1 or not limit_memory):
                     raise MemoryError("Not enough memory to run the query.") from ex
                 elif current_threads_limit > 2:
                     # First limit number of CPUs
                     current_threads_limit = max(2, ceil(current_threads_limit / 2))
-                elif current_memory_gb_limit > 1:
+                elif limit_memory and current_memory_gb_limit > 1:
                     # Next limit memory
                     current_memory_gb_limit = ceil(current_memory_gb_limit / 2)
-                elif current_memory_gb_limit == 1:
+                elif limit_memory and current_memory_gb_limit == 1:
                     # Reduce memory below 1 GB
                     current_memory_gb_limit /= 2
                 else:
