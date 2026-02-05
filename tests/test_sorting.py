@@ -3,7 +3,9 @@
 import tempfile
 from pathlib import Path
 
+import pandas as pd
 import pyarrow.parquet as pq
+from overturemaps.core import get_latest_release
 from tqdm import tqdm
 
 from rq_geo_toolkit.duckdb import set_up_duckdb_connection
@@ -11,12 +13,23 @@ from rq_geo_toolkit.geoparquet_compression import compress_parquet_with_duckdb
 from rq_geo_toolkit.geoparquet_sorting import sort_geoparquet_file_by_geometry
 
 
+def load_first_overture_place_file_from_stac() -> str:
+    """Load the first place type file from Overture Maps STAC catalog."""
+    latest_om_release = get_latest_release()
+    stac_catalog = pd.read_parquet(
+        f"https://stac.overturemaps.org/{latest_om_release}/collections.parquet"
+    )
+    s3_url = str(
+        stac_catalog[stac_catalog["collection"] == "place"]["assets"].iloc[0]["aws"]["alternate"][
+            "s3"
+        ]["href"]
+    )
+    return s3_url
+
+
 def test_sorting() -> None:
     """Test if sorted file is smaller and metadata in both files is equal."""
-    download_file_url = (
-        "s3://overturemaps-us-west-2/release/2024-08-20.0/theme=places/type=place/"
-        "part-00002-93118862-ebe9-4b31-8277-1a87d792bd5d-c000.zstd.parquet"
-    )
+    download_file_url = load_first_overture_place_file_from_stac()
     save_path = Path("files/unsorted_example.parquet")
     save_path.parent.mkdir(exist_ok=True, parents=True)
 
@@ -37,15 +50,16 @@ def test_sorting() -> None:
                 connection.execute(query)
 
         unsorted_pq = compress_parquet_with_duckdb(
-                input_file_path=save_path,
-                output_file_path=tmp_dir_path / "unsorted.parquet",
-                working_directory=tmp_dir_path,
-            )
+            input_file_path=save_path,
+            output_file_path=tmp_dir_path / "unsorted.parquet",
+            working_directory=tmp_dir_path,
+        )
 
         total_rows = pq.read_metadata(save_path).num_rows
         last_rows = 0
 
         with tqdm(total=total_rows) as pbar:
+
             def report_progress(n: int) -> None:
                 nonlocal last_rows, pbar
                 diff = n - last_rows
