@@ -38,7 +38,7 @@ def test_sorting() -> None:
     COPY (
         SELECT id, geometry
         FROM read_parquet('{download_file_url}')
-        USING SAMPLE 100%
+        ORDER BY random()
     ) TO '{save_path}' (FORMAT parquet);
     """
     with tempfile.TemporaryDirectory(dir=save_path.parent.resolve()) as tmp_dir_name:
