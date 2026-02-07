@@ -2,7 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 import pyarrow.parquet as pq
 from duckdb import OutOfMemoryException
@@ -36,7 +36,12 @@ def sort_geoparquet_file_by_geometry(
     working_directory: Union[str, Path] = "files",
     verbosity_mode: "VERBOSITY_MODE" = "transient",
     remove_input_file: bool = True,
-    progress_callback: Optional["Callable[[int], None]"] = None
+    progress_callback: Optional["Callable[[int], None]"] = None,
+    duckdb_conn_randomize_db_file_name: bool = False,
+    duckdb_conn_config_kwargs: Optional[dict[str, Any]] = None,
+    duckdb_conn_provisioning_queries: Optional[Union[str, list[str]]] = None,
+    duckdb_conn_official_extensions_to_load: Optional[list[str]] = None,
+    duckdb_conn_community_extensions_to_load: Optional[list[str]] = None,
 ) -> Path:
     """
     Sorts a GeoParquet file by the geometry column.
@@ -70,6 +75,17 @@ def sort_geoparquet_file_by_geometry(
             Defaults to True.
         progress_callback (Callable[[int], None], optional): A callback for reporting sorting
             progress. Will report current progress.
+        duckdb_conn_randomize_db_file_name (bool, optional): Whether to randomize duckdb
+            connection file name. Can be useful to avoid conflicts when running multiple
+            connections in the same working directory. Defaults to False.
+        duckdb_conn_config_kwargs (Optional[dict[str, Any]], optional): Additional kwargs to
+            set in duckdb connection config. Defaults to None.
+        duckdb_conn_provisioning_queries (Optional[Union[str, list[str]]], optional): Additional
+            provisioning queries to run after setting up duckdb connection. Defaults to None.
+        duckdb_conn_official_extensions_to_load (Optional[list[str]], optional): List of official
+            duckdb extensions to load when setting up duckdb connection. Defaults to None.
+        duckdb_conn_community_extensions_to_load (Optional[list[str]], optional): List of community
+            duckdb extensions to load when setting up duckdb connection. Defaults to None.
     """
     if output_file_path is None:
         output_file_path = (
@@ -96,6 +112,11 @@ def sort_geoparquet_file_by_geometry(
             tmp_dir_path=tmp_dir_path,
             verbosity_mode=verbosity_mode,
             progress_callback=progress_callback,
+            duckdb_conn_randomize_db_file_name=duckdb_conn_randomize_db_file_name,
+            duckdb_conn_config_kwargs=duckdb_conn_config_kwargs,
+            duckdb_conn_provisioning_queries=duckdb_conn_provisioning_queries,
+            duckdb_conn_official_extensions_to_load=duckdb_conn_official_extensions_to_load,
+            duckdb_conn_community_extensions_to_load=duckdb_conn_community_extensions_to_load,
         )
 
         original_metadata = pq.read_metadata(input_file_path)
@@ -115,6 +136,11 @@ def sort_geoparquet_file_by_geometry(
             working_directory=tmp_dir_path,
             parquet_metadata=original_metadata,
             verbosity_mode=verbosity_mode,
+            duckdb_conn_randomize_db_file_name=duckdb_conn_randomize_db_file_name,
+            duckdb_conn_config_kwargs=duckdb_conn_config_kwargs,
+            duckdb_conn_provisioning_queries=duckdb_conn_provisioning_queries,
+            duckdb_conn_official_extensions_to_load=duckdb_conn_official_extensions_to_load,
+            duckdb_conn_community_extensions_to_load=duckdb_conn_community_extensions_to_load,
         )
 
     return output_file_path
@@ -126,9 +152,22 @@ def _sort_with_duckdb(
     sort_extent: Optional[tuple[float, float, float, float]],
     tmp_dir_path: Path,
     verbosity_mode: "VERBOSITY_MODE",
-    progress_callback: Optional["Callable[[int], None]"] = None
+    progress_callback: Optional["Callable[[int], None]"] = None,
+    duckdb_conn_randomize_db_file_name: bool = False,
+    duckdb_conn_config_kwargs: Optional[dict[str, Any]] = None,
+    duckdb_conn_provisioning_queries: Optional[Union[str, list[str]]] = None,
+    duckdb_conn_official_extensions_to_load: Optional[list[str]] = None,
+    duckdb_conn_community_extensions_to_load: Optional[list[str]] = None,
 ) -> None:
-    connection = set_up_duckdb_connection(tmp_dir_path, preserve_insertion_order=True)
+    connection = set_up_duckdb_connection(
+        tmp_dir_path,
+        preserve_insertion_order=True,
+        duckdb_conn_randomize_db_file_name=duckdb_conn_randomize_db_file_name,
+        duckdb_conn_config_kwargs=duckdb_conn_config_kwargs,
+        duckdb_conn_provisioning_queries=duckdb_conn_provisioning_queries,
+        duckdb_conn_official_extensions_to_load=duckdb_conn_official_extensions_to_load,
+        duckdb_conn_community_extensions_to_load=duckdb_conn_community_extensions_to_load,
+    )
 
     struct_type = "::STRUCT(min_x DOUBLE, min_y DOUBLE, max_x DOUBLE, max_y DOUBLE)"
     connection.sql(
@@ -226,6 +265,11 @@ def _sort_with_duckdb(
                 tmp_dir_path=tmp_dir_path,
                 verbosity_mode=verbosity_mode,
                 preserve_insertion_order=True,
+                duckdb_conn_randomize_db_file_name=duckdb_conn_randomize_db_file_name,
+                duckdb_conn_config_kwargs=duckdb_conn_config_kwargs,
+                duckdb_conn_provisioning_queries=duckdb_conn_provisioning_queries,
+                duckdb_conn_official_extensions_to_load=duckdb_conn_official_extensions_to_load,
+                duckdb_conn_community_extensions_to_load=duckdb_conn_community_extensions_to_load,
             )
 
             current_file_idx += 1

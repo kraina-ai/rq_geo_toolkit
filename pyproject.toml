@@ -15,7 +15,7 @@ dependencies = [
     "psutil>=5.6.2",
     "packaging>=17.0",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 readme = "README.md"
 license = {text = "MIT"}
 
@@ -29,21 +29,9 @@ distribution = true
 
 [tool.pdm.dev-dependencies]
 # pdm add -d <library>
-dev = ["bumpver", "types-requests", "setuptools>=45.0.0"]
 # pdm add -dG lint <library>
 lint = ["pre-commit>=4", "mypy>=1", "docformatter[tomli]", "ruff>=0.1.0"]
 # pdm add -dG test <library>
-test = [
-    "pytest>=7.0.0",
-    "tox-pdm>=0.7.2",
-    "pytest-mock>=3.3.0",
-    "requests-mock>=1.12.1",
-    "pytest-check>=2.3.1",
-    "pytest-parametrization>=2022.2.1",
-    "pytest-doctestplus>=1.2.1",
-    "osmnx>=1.3.0",
-    "tqdm>=4.67.1",
-]
 license = ["licensecheck==2025.1.0", "pipdeptree"]
 
 [tool.pdm.scripts]
@@ -123,3 +111,24 @@ push = false
     '^version = "{version}"$',
 ]
 "rq_geo_toolkit/__init__.py" = ['^__version__ = "{version}"$']
+
+[dependency-groups]
+dev = [
+    "bumpver",
+    "types-requests",
+    "setuptools>=45.0.0",
+    "ipykernel",
+    "matplotlib",
+]
+test = [
+    "pytest>=7.0.0",
+    "tox-pdm>=0.7.2",
+    "pytest-mock>=3.3.0",
+    "requests-mock>=1.12.1",
+    "pytest-check>=2.3.1",
+    "pytest-parametrization>=2022.2.1",
+    "pytest-doctestplus>=1.2.1",
+    "osmnx>=1.3.0",
+    "tqdm>=4.67.1",
+    "overturemaps>=0.18.0",
+]
