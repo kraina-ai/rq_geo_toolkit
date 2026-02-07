@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.2.0] - 2026-02-07
+
 ### Added
 
 - Option to provision DuckDB connection with config/extensions and dedicated setup queries
@@ -137,7 +139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Georelated constants
 - DuckDB initialization function
 
-[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.9.0...HEAD
+[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.2.0...HEAD
+[2026.2.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.9.0...2026.2.0
 [2025.9.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.7...2025.9.0
 [2025.8.7]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.6...2025.8.7
 [2025.8.6]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.8.5...2025.8.6
