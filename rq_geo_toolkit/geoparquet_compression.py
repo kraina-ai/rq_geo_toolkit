@@ -2,7 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
+from typing import TYPE_CHECKING, Literal, Optional, Union, cast
 
 import pyarrow.parquet as pq
 
@@ -14,6 +14,7 @@ from rq_geo_toolkit.constants import (
 )
 from rq_geo_toolkit.duckdb import (
     DUCKDB_ABOVE_130,
+    DuckDBConnKwargs,
     run_duckdb_query_function_with_memory_limit,
     set_up_duckdb_connection,
     sql_escape,
@@ -33,11 +34,7 @@ def compress_parquet_with_duckdb(
     working_directory: Union[str, Path] = "files",
     parquet_metadata: Optional[pq.FileMetaData] = None,
     verbosity_mode: "VERBOSITY_MODE" = "transient",
-    duckdb_conn_randomize_db_file_name: bool = False,
-    duckdb_conn_config_kwargs: Optional[dict[str, Any]] = None,
-    duckdb_conn_provisioning_queries: Optional[Union[str, list[str]]] = None,
-    duckdb_conn_official_extensions_to_load: Optional[list[str]] = None,
-    duckdb_conn_community_extensions_to_load: Optional[list[str]] = None,
+    duckdb_conn_kwargs: Optional[DuckDBConnKwargs] = None,
 ) -> Path:
     """
     Compresses a GeoParquet file while keeping its metadata.
@@ -64,17 +61,8 @@ def compress_parquet_with_duckdb(
             verbosity mode. Can be one of: silent, transient and verbose. Silent disables
             output completely. Transient tracks progress, but removes output after finished.
             Verbose leaves all progress outputs in the stdout. Defaults to "transient".
-        duckdb_conn_randomize_db_file_name (bool, optional): Whether to randomize duckdb
-            connection file name. Can be useful to avoid conflicts when running multiple
-            connections in the same working directory. Defaults to False.
-        duckdb_conn_config_kwargs (Optional[dict[str, Any]], optional): Additional kwargs to
-            set in duckdb connection config. Defaults to None.
-        duckdb_conn_provisioning_queries (Optional[Union[str, list[str]]], optional): Additional
-            provisioning queries to run after setting up duckdb connection. Defaults to None.
-        duckdb_conn_official_extensions_to_load (Optional[list[str]], optional): List of official
-            duckdb extensions to load when setting up duckdb connection. Defaults to None.
-        duckdb_conn_community_extensions_to_load (Optional[list[str]], optional): List of community
-            duckdb extensions to load when setting up duckdb connection. Defaults to None.
+        duckdb_conn_kwargs (Optional[DuckDBConnKwargs], optional): Additional kwargs used to
+            provision a duckdb connection. Defaults to None.
     """
     is_single_path = isinstance(input_file_path, Path)
     if is_single_path:
@@ -111,11 +99,7 @@ def compress_parquet_with_duckdb(
         parquet_version=parquet_version,
         working_directory=working_directory,
         verbosity_mode=verbosity_mode,
-        duckdb_conn_randomize_db_file_name=duckdb_conn_randomize_db_file_name,
-        duckdb_conn_config_kwargs=duckdb_conn_config_kwargs,
-        duckdb_conn_provisioning_queries=duckdb_conn_provisioning_queries,
-        duckdb_conn_official_extensions_to_load=duckdb_conn_official_extensions_to_load,
-        duckdb_conn_community_extensions_to_load=duckdb_conn_community_extensions_to_load,
+        duckdb_conn_kwargs=duckdb_conn_kwargs,
     )
 
 
@@ -129,11 +113,7 @@ def compress_query_with_duckdb(
     parquet_version: Literal["v1", "v2"] = PARQUET_VERSION,
     working_directory: Union[str, Path] = "files",
     verbosity_mode: "VERBOSITY_MODE" = "transient",
-    duckdb_conn_randomize_db_file_name: bool = False,
-    duckdb_conn_config_kwargs: Optional[dict[str, Any]] = None,
-    duckdb_conn_provisioning_queries: Optional[Union[str, list[str]]] = None,
-    duckdb_conn_official_extensions_to_load: Optional[list[str]] = None,
-    duckdb_conn_community_extensions_to_load: Optional[list[str]] = None,
+    duckdb_conn_kwargs: Optional[DuckDBConnKwargs] = None,
 ) -> Path:
     """
     Compresses query to a GeoParquet file while keeping its metadata.
@@ -160,17 +140,8 @@ def compress_query_with_duckdb(
             verbosity mode. Can be one of: silent, transient and verbose. Silent disables
             output completely. Transient tracks progress, but removes output after finished.
             Verbose leaves all progress outputs in the stdout. Defaults to "transient".
-        duckdb_conn_randomize_db_file_name (bool, optional): Whether to randomize duckdb
-            connection file name. Can be useful to avoid conflicts when running multiple
-            connections in the same working directory. Defaults to False.
-        duckdb_conn_config_kwargs (Optional[dict[str, Any]], optional): Additional kwargs to
-            set in duckdb connection config. Defaults to None.
-        duckdb_conn_provisioning_queries (Optional[Union[str, list[str]]], optional): Additional
-            provisioning queries to run after setting up duckdb connection. Defaults to None.
-        duckdb_conn_official_extensions_to_load (Optional[list[str]], optional): List of official
-            duckdb extensions to load when setting up duckdb connection. Defaults to None.
-        duckdb_conn_community_extensions_to_load (Optional[list[str]], optional): List of community
-            duckdb extensions to load when setting up duckdb connection. Defaults to None.
+        duckdb_conn_kwargs (Optional[DuckDBConnKwargs], optional): Additional kwargs used to
+            provision a duckdb connection. Defaults to None.
     """
     with tempfile.TemporaryDirectory(dir=Path(working_directory).resolve()) as tmp_dir_name:
         tmp_dir_path = Path(tmp_dir_name)
@@ -192,11 +163,7 @@ def compress_query_with_duckdb(
                 row_group_size=row_group_size,
                 parquet_version=parquet_version,
             ),
-            duckdb_conn_randomize_db_file_name=duckdb_conn_randomize_db_file_name,
-            duckdb_conn_config_kwargs=duckdb_conn_config_kwargs,
-            duckdb_conn_provisioning_queries=duckdb_conn_provisioning_queries,
-            duckdb_conn_official_extensions_to_load=duckdb_conn_official_extensions_to_load,
-            duckdb_conn_community_extensions_to_load=duckdb_conn_community_extensions_to_load,
+            duckdb_conn_kwargs=duckdb_conn_kwargs,
         )
 
     return output_file_path
@@ -213,14 +180,11 @@ def _compress_with_memory_limit(
     current_memory_gb_limit: float,
     current_threads_limit: int,
     tmp_dir_path: Path,
-    duckdb_conn_randomize_db_file_name: bool = False,
-    duckdb_conn_config_kwargs: Optional[dict[str, Any]] = None,
-    duckdb_conn_provisioning_queries: Optional[Union[str, list[str]]] = None,
-    duckdb_conn_official_extensions_to_load: Optional[list[str]] = None,
-    duckdb_conn_community_extensions_to_load: Optional[list[str]] = None,
+    duckdb_conn_kwargs: Optional[DuckDBConnKwargs] = None,
 ) -> None:
-    duckdb_conn_provisioning_queries = [
-        *(duckdb_conn_provisioning_queries or []),
+    duckdb_conn_kwargs = duckdb_conn_kwargs or {}
+    duckdb_conn_kwargs["provisioning_queries"] = [
+        *duckdb_conn_kwargs.get("provisioning_queries", []),
         "SET enable_geoparquet_conversion = false;",
         f"SET memory_limit = '{current_memory_gb_limit}GB';",
         f"SET threads = {current_threads_limit};",
@@ -228,11 +192,7 @@ def _compress_with_memory_limit(
     connection = set_up_duckdb_connection(
         tmp_dir_path,
         preserve_insertion_order=True,
-        duckdb_conn_randomize_db_file_name=duckdb_conn_randomize_db_file_name,
-        duckdb_conn_config_kwargs=duckdb_conn_config_kwargs,
-        duckdb_conn_provisioning_queries=duckdb_conn_provisioning_queries,
-        duckdb_conn_official_extensions_to_load=duckdb_conn_official_extensions_to_load,
-        duckdb_conn_community_extensions_to_load=duckdb_conn_community_extensions_to_load,
+        duckdb_conn_kwargs=duckdb_conn_kwargs,
     )
 
     parquet_version_query = f"PARQUET_VERSION {parquet_version}," if DUCKDB_ABOVE_130 else ""
