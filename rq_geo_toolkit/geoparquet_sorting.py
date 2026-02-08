@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Optional, Union
 
 import pyarrow.parquet as pq
-from duckdb import DuckDBConnKwargs, OutOfMemoryException
+from duckdb import OutOfMemoryException
 from rich import print as rprint
 
 from rq_geo_toolkit.constants import (
@@ -14,7 +14,11 @@ from rq_geo_toolkit.constants import (
     PARQUET_ROW_GROUP_SIZE,
     PARQUET_VERSION,
 )
-from rq_geo_toolkit.duckdb import run_query_with_memory_monitoring, set_up_duckdb_connection
+from rq_geo_toolkit.duckdb import (
+    DuckDBConnKwargs,
+    run_query_with_memory_monitoring,
+    set_up_duckdb_connection,
+)
 from rq_geo_toolkit.geoparquet_compression import (
     compress_parquet_with_duckdb,
 )
