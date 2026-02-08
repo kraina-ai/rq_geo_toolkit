@@ -25,7 +25,7 @@ def test_randomized_local_file_name() -> None:
     with (
         tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir_name,
         set_up_duckdb_connection(
-            tmp_dir_path=tmp_dir_name, duckdb_conn_randomize_db_file_name=True
+            tmp_dir_path=tmp_dir_name, duckdb_conn_kwargs={"randomize_db_file_name": True}
         ),
     ):
         files_in_tmp_dir = list(Path(tmp_dir_name).glob("*.duckdb"))
@@ -39,7 +39,7 @@ def test_query_provisioning() -> None:
         tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir_name,
         set_up_duckdb_connection(
             tmp_dir_path=tmp_dir_name,
-            duckdb_conn_provisioning_queries=["SET threads = 1;"],
+            duckdb_conn_kwargs={"provisioning_queries": ["SET threads = 1;"]},
         ) as conn,
     ):
         threads_limit_provisioned = conn.sql(
@@ -53,7 +53,7 @@ def test_conn_config() -> None:
     with (
         tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir_name,
         set_up_duckdb_connection(
-            tmp_dir_path=tmp_dir_name, duckdb_conn_config_kwargs={"threads": 1}
+            tmp_dir_path=tmp_dir_name, duckdb_conn_kwargs={"config_kwargs": {"threads": 1}}
         ) as conn,
     ):
         threads_limit_provisioned = conn.sql(
@@ -67,7 +67,8 @@ def test_loading_official_extensions() -> None:
     with (
         tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir_name,
         set_up_duckdb_connection(
-            tmp_dir_path=tmp_dir_name, duckdb_conn_official_extensions_to_load=["vss"]
+            tmp_dir_path=tmp_dir_name,
+            duckdb_conn_kwargs={"official_extensions_to_load": ["vss"]},
         ) as conn,
     ):
         vss_loaded = conn.sql(
@@ -84,10 +85,7 @@ def test_missing_vss_official_extension() -> None:
     """Test if missing community extension throws error."""
     with (
         tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir_name,
-        set_up_duckdb_connection(
-            tmp_dir_path=tmp_dir_name,
-            duckdb_conn_official_extensions_to_load=None,  # explicit
-        ) as conn,
+        set_up_duckdb_connection(tmp_dir_path=tmp_dir_name) as conn,
     ):
         vss_loaded = conn.sql(
             """
@@ -105,7 +103,7 @@ def test_loading_community_extensions() -> None:
         run_query_with_memory_monitoring(
             "SELECT h3_latlng_to_cell(37.7887987, -122.3931578, 9)",
             tmp_dir_path=Path(tmp_dir_name),
-            duckdb_conn_community_extensions_to_load=["h3"],
+            duckdb_conn_kwargs={"community_extensions_to_load": ["h3"]},
         )
 
 
@@ -116,7 +114,5 @@ def test_missing_h3_community_extension() -> None:
         tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir_name,
     ):
         run_query_with_memory_monitoring(
-            "SELECT h3_latlng_to_cell(37.7887987, -122.3931578, 9)",
-            tmp_dir_path=Path(tmp_dir_name),
-            duckdb_conn_community_extensions_to_load=None,  # explicit
+            "SELECT h3_latlng_to_cell(37.7887987, -122.3931578, 9)", tmp_dir_path=Path(tmp_dir_name)
         )

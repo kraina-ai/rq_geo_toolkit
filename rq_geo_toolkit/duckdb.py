@@ -1,6 +1,7 @@
 """Helper functions for DuckDB."""
 
 import secrets
+import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -8,6 +9,11 @@ from math import ceil
 from pathlib import Path
 from time import sleep
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+
+if sys.version_info >= (3, 12):
+    from typing import TypedDict
+else:
+    from typing_extensions import TypedDict
 
 import duckdb
 import psutil
@@ -21,8 +27,28 @@ if TYPE_CHECKING:  # pragma: no cover
     from rq_geo_toolkit.rich_utils import VERBOSITY_MODE
 
 
-DUCKDB_ABOVE_130 = version.parse(duckdb.__version__) >= version.parse("1.3.0")
+class DuckDBConnKwargs(TypedDict, total=False):  # noqa: D101
+    # """
+    # randomize_db_file_name (bool, optional): Whether to randomize duckdb
+    #     connection file name. Can be useful to avoid conflicts when running multiple
+    #     connections in the same working directory. Defaults to False.
+    # config_kwargs (Optional[dict[str, Any]], optional): Additional kwargs to
+    #     set in duckdb connection config. Defaults to None.
+    # provisioning_queries (Optional[Union[str, list[str]]], optional): Additional
+    #     provisioning queries to run after setting up duckdb connection. Defaults to None.
+    # official_extensions_to_load (Optional[list[str]], optional): List of official
+    #     duckdb extensions to load when setting up duckdb connection. Defaults to None.
+    # community_extensions_to_load (Optional[list[str]], optional): List of community
+    #     duckdb extensions to load when setting up duckdb connection. Defaults to None.
+    # """
+    randomize_db_file_name: bool
+    config_kwargs: dict[str, Any]
+    provisioning_queries: Union[str, list[str]]
+    official_extensions_to_load: list[str]
+    community_extensions_to_load: list[str]
 
+
+DUCKDB_ABOVE_130 = version.parse(duckdb.__version__) >= version.parse("1.3.0")
 
 
 def sql_escape(value: str) -> str:
@@ -33,11 +59,7 @@ def sql_escape(value: str) -> str:
 def set_up_duckdb_connection(
     tmp_dir_path: Union[str, Path],
     preserve_insertion_order: bool = False,
-    duckdb_conn_randomize_db_file_name: bool = False,
-    duckdb_conn_config_kwargs: Optional[dict[str, Any]] = None,
-    duckdb_conn_provisioning_queries: Optional[Union[str, list[str]]] = None,
-    duckdb_conn_official_extensions_to_load: Optional[list[str]] = None,
-    duckdb_conn_community_extensions_to_load: Optional[list[str]] = None,
+    duckdb_conn_kwargs: Optional[DuckDBConnKwargs] = None,
 ) -> "duckdb.DuckDBPyConnection":
     """
     Create DuckDB connection in a given directory.
@@ -47,27 +69,23 @@ def set_up_duckdb_connection(
             Defaults to None.
         preserve_insertion_order (bool, optional): Whether to keep operations in order.
             Used only with external process. Defaults to False.
-        duckdb_conn_randomize_db_file_name (bool, optional): Whether to randomize duckdb
-            connection file name. Can be useful to avoid conflicts when running multiple
-            connections in the same working directory. Defaults to False.
-        duckdb_conn_config_kwargs (Optional[dict[str, Any]], optional): Additional kwargs to
-            set in duckdb connection config. Defaults to None.
-        duckdb_conn_provisioning_queries (Optional[Union[str, list[str]]], optional): Additional
-            provisioning queries to run after setting up duckdb connection. Defaults to None.
-        duckdb_conn_official_extensions_to_load (Optional[list[str]], optional): List of official
-            duckdb extensions to load when setting up duckdb connection. Defaults to None.
-        duckdb_conn_community_extensions_to_load (Optional[list[str]], optional): List of community
-            duckdb extensions to load when setting up duckdb connection. Defaults to None.
+        duckdb_conn_kwargs (Optional[DuckDBConnKwargs], optional): Additional kwargs used to
+            provision a duckdb connection. Defaults to None.
 
     Returns:
         duckdb.DuckDBPyConnection: DuckDB connection object.
     """
-    local_db_file = (
-        "db.duckdb" if not duckdb_conn_randomize_db_file_name else f"{secrets.token_hex(16)}.duckdb"
-    )
+    duckdb_conn_kwargs = duckdb_conn_kwargs or {}
+    randomize_db_file_name = duckdb_conn_kwargs.get("randomize_db_file_name", False)
+    config_kwargs = duckdb_conn_kwargs.get("config_kwargs")
+    provisioning_queries = duckdb_conn_kwargs.get("provisioning_queries")
+    official_extensions_to_load = duckdb_conn_kwargs.get("official_extensions_to_load")
+    community_extensions_to_load = duckdb_conn_kwargs.get("community_extensions_to_load")
+
+    local_db_file = "db.duckdb" if not randomize_db_file_name else f"{secrets.token_hex(16)}.duckdb"
 
     # prepare config params
-    config_params = duckdb_conn_config_kwargs or {}
+    config_params = config_kwargs or {}
     if "preserve_insertion_order" not in config_params:
         config_params["preserve_insertion_order"] = preserve_insertion_order
 
@@ -82,21 +100,21 @@ def set_up_duckdb_connection(
     # execute provisioning queries
     connection.execute("SET enable_progress_bar = false;")
     connection.execute("SET enable_progress_bar_print = false;")
-    if duckdb_conn_provisioning_queries is not None:
-        if isinstance(duckdb_conn_provisioning_queries, str):
-            duckdb_conn_provisioning_queries = [duckdb_conn_provisioning_queries]
-        for query in duckdb_conn_provisioning_queries:
+    if provisioning_queries is not None:
+        if isinstance(provisioning_queries, str):
+            provisioning_queries = [provisioning_queries]
+        for query in provisioning_queries:
             connection.execute(query)
 
     # install and load official extensions
-    duckdb_conn_official_extensions_to_load = duckdb_conn_official_extensions_to_load or ["spatial"]
-    for official_extension_to_load in duckdb_conn_official_extensions_to_load:
+    official_extensions_to_load = official_extensions_to_load or ["spatial"]
+    for official_extension_to_load in official_extensions_to_load:
         connection.install_extension(official_extension_to_load)
         connection.load_extension(official_extension_to_load)
 
     # install and load community extensions
-    duckdb_conn_community_extensions_to_load = duckdb_conn_community_extensions_to_load or []
-    for community_extension_to_load in duckdb_conn_community_extensions_to_load:
+    community_extensions_to_load = community_extensions_to_load or []
+    for community_extension_to_load in community_extensions_to_load:
         connection.install_extension(community_extension_to_load, repository="community")
         connection.load_extension(community_extension_to_load)
 
@@ -112,11 +130,7 @@ def run_duckdb_query_function_with_memory_limit(
     current_threads_limit: Optional[int] = None,
     current_memory_gb_limit: Optional[float] = None,
     limit_memory: bool = True,
-    duckdb_conn_randomize_db_file_name: bool = False,
-    duckdb_conn_config_kwargs: Optional[dict[str, Any]] = None,
-    duckdb_conn_provisioning_queries: Optional[Union[str, list[str]]] = None,
-    duckdb_conn_official_extensions_to_load: Optional[list[str]] = None,
-    duckdb_conn_community_extensions_to_load: Optional[list[str]] = None,
+    duckdb_conn_kwargs: Optional[DuckDBConnKwargs] = None,
 ) -> tuple[float, int]:
     """Run function with duckdb query and limit threads automatically."""
     current_memory_gb_limit = current_memory_gb_limit or ceil(
@@ -136,11 +150,7 @@ def run_duckdb_query_function_with_memory_limit(
                     current_memory_gb_limit=current_memory_gb_limit,
                     current_threads_limit=current_threads_limit,
                     tmp_dir_path=nested_tmp_dir_path,
-                    duckdb_conn_randomize_db_file_name=duckdb_conn_randomize_db_file_name,
-                    duckdb_conn_config_kwargs=duckdb_conn_config_kwargs,
-                    duckdb_conn_provisioning_queries=duckdb_conn_provisioning_queries,
-                    duckdb_conn_official_extensions_to_load=duckdb_conn_official_extensions_to_load,
-                    duckdb_conn_community_extensions_to_load=duckdb_conn_community_extensions_to_load,
+                    duckdb_conn_kwargs=duckdb_conn_kwargs,
                 )
                 process = WorkerProcess(target=f, args=args or (), kwargs=kwargs or {})
                 run_process_with_memory_monitoring(process)
@@ -179,11 +189,7 @@ def run_query_with_memory_monitoring(
     verbosity_mode: "VERBOSITY_MODE" = "verbose",
     preserve_insertion_order: bool = False,
     limit_memory: bool = True,
-    duckdb_conn_randomize_db_file_name: bool = False,
-    duckdb_conn_config_kwargs: Optional[dict[str, Any]] = None,
-    duckdb_conn_provisioning_queries: Optional[Union[str, list[str]]] = None,
-    duckdb_conn_official_extensions_to_load: Optional[list[str]] = None,
-    duckdb_conn_community_extensions_to_load: Optional[list[str]] = None,
+    duckdb_conn_kwargs: Optional[DuckDBConnKwargs] = None,
 ) -> None:
     """
     Run SQL query and raise exception if memory threshold is exceeded.
@@ -201,17 +207,8 @@ def run_query_with_memory_monitoring(
             Used only with external process. Defaults to False.
         limit_memory (bool, optional): Whether to automatically limit memory for DuckDB.
             Defaults to True.
-        duckdb_conn_randomize_db_file_name (bool, optional): Whether to randomize duckdb
-            connection file name. Can be useful to avoid conflicts when running multiple
-            connections in the same working directory. Defaults to False.
-        duckdb_conn_config_kwargs (Optional[dict[str, Any]], optional): Additional kwargs to
-            set in duckdb connection config. Defaults to None.
-        duckdb_conn_provisioning_queries (Optional[Union[str, list[str]]], optional): Additional
-            provisioning queries to run after setting up duckdb connection. Defaults to None.
-        duckdb_conn_official_extensions_to_load (Optional[list[str]], optional): List of official
-            duckdb extensions to load when setting up duckdb connection. Defaults to None.
-        duckdb_conn_community_extensions_to_load (Optional[list[str]], optional): List of community
-            duckdb extensions to load when setting up duckdb connection. Defaults to None.
+        duckdb_conn_kwargs (Optional[DuckDBConnKwargs], optional): Additional kwargs used to
+            provision a duckdb connection. Defaults to None.
     """
     if tmp_dir_path is connection is None:
         raise ValueError("Must pass tmp_dir_path or connection.")
@@ -228,11 +225,7 @@ def run_query_with_memory_monitoring(
             limit_memory=limit_memory,
             function=_run_query,
             kwargs=dict(sql_query=sql_query, preserve_insertion_order=preserve_insertion_order),
-            duckdb_conn_randomize_db_file_name=duckdb_conn_randomize_db_file_name,
-            duckdb_conn_config_kwargs=duckdb_conn_config_kwargs,
-            duckdb_conn_provisioning_queries=duckdb_conn_provisioning_queries,
-            duckdb_conn_official_extensions_to_load=duckdb_conn_official_extensions_to_load,
-            duckdb_conn_community_extensions_to_load=duckdb_conn_community_extensions_to_load,
+            duckdb_conn_kwargs=duckdb_conn_kwargs,
         )
     elif connection is not None:
         current_memory_gb_limit = ceil(psutil.virtual_memory().total / MEMORY_1GB)
@@ -307,14 +300,11 @@ def _run_query(
     current_memory_gb_limit: float,
     current_threads_limit: int,
     tmp_dir_path: Path,
-    duckdb_conn_randomize_db_file_name: bool = False,
-    duckdb_conn_config_kwargs: Optional[dict[str, Any]] = None,
-    duckdb_conn_provisioning_queries: Optional[Union[str, list[str]]] = None,
-    duckdb_conn_official_extensions_to_load: Optional[list[str]] = None,
-    duckdb_conn_community_extensions_to_load: Optional[list[str]] = None,
+    duckdb_conn_kwargs: Optional[DuckDBConnKwargs] = None,
 ) -> None:  # pragma: no cover
-    duckdb_conn_provisioning_queries = [
-        *(duckdb_conn_provisioning_queries or []),
+    duckdb_conn_kwargs = duckdb_conn_kwargs or {}
+    duckdb_conn_kwargs["provisioning_queries"] = [
+        *duckdb_conn_kwargs.get("provisioning_queries", []),
         f"SET memory_limit = '{current_memory_gb_limit}GB';",
         f"SET threads = {current_threads_limit};",
     ]
@@ -323,11 +313,7 @@ def _run_query(
         set_up_duckdb_connection(
             tmp_dir_path=Path(tmp_dir_name),
             preserve_insertion_order=preserve_insertion_order,
-            duckdb_conn_randomize_db_file_name=duckdb_conn_randomize_db_file_name,
-            duckdb_conn_config_kwargs=duckdb_conn_config_kwargs,
-            duckdb_conn_provisioning_queries=duckdb_conn_provisioning_queries,
-            duckdb_conn_official_extensions_to_load=duckdb_conn_official_extensions_to_load,
-            duckdb_conn_community_extensions_to_load=duckdb_conn_community_extensions_to_load,
+            duckdb_conn_kwargs=duckdb_conn_kwargs,
         ) as conn,
     ):
         conn.sql(sql_query)
