@@ -140,19 +140,11 @@ def test_extension_installation_location() -> None:
     ) as tmp_dir_name:
         tmp_dir_path = Path(tmp_dir_name)
 
-        # print(tmp_dir_name)
-        # run_query_with_memory_monitoring(
-        #     "SELECT h3_latlng_to_cell(37.7887987, -122.3931578, 9)",
-        #     tmp_dir_path=Path(tmp_dir_name),
-        #     duckdb_conn_kwargs=conn_kwargs,
-        # )
-
         if not save_path.exists():
             with set_up_duckdb_connection(
                 tmp_dir_path=tmp_dir_path, preserve_insertion_order=True
             ) as connection:
                 connection.execute(query)
-                print("stopping conn")
 
         sort_geoparquet_file_by_geometry(
             input_file_path=save_path,

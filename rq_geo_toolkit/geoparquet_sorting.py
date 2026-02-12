@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Optional, Union
 
 import pyarrow.parquet as pq
-from duckdb import OutOfMemoryException
+from duckdb import OutOfMemoryException, run_query_with_memory_monitoring
 from rich import print as rprint
 
 from rq_geo_toolkit.constants import (
@@ -18,6 +18,7 @@ from rq_geo_toolkit.duckdb import (
     DuckDBConnKwargs,
     set_up_duckdb_connection,
 )
+from rq_geo_toolkit.geoparquet_compression import compress_parquet_with_duckdb
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
@@ -102,25 +103,25 @@ def sort_geoparquet_file_by_geometry(
             duckdb_conn_kwargs=duckdb_conn_kwargs,
         )
 
-        # original_metadata = pq.read_metadata(input_file_path)
+        original_metadata = pq.read_metadata(input_file_path)
 
         if remove_input_file:
             input_file_path.unlink()
 
-        # order_files = sorted(order_dir_path.glob("*.parquet"), key=lambda x: int(x.stem))
+        order_files = sorted(order_dir_path.glob("*.parquet"), key=lambda x: int(x.stem))
 
-        # compress_parquet_with_duckdb(
-        #     input_file_path=order_files,
-        #     output_file_path=output_file_path,
-        #     compression=compression,
-        #     compression_level=compression_level,
-        #     row_group_size=row_group_size,
-        #     parquet_version=parquet_version,
-        #     working_directory=tmp_dir_path,
-        #     parquet_metadata=original_metadata,
-        #     verbosity_mode=verbosity_mode,
-        #     duckdb_conn_kwargs=duckdb_conn_kwargs,
-        # )
+        compress_parquet_with_duckdb(
+            input_file_path=order_files,
+            output_file_path=output_file_path,
+            compression=compression,
+            compression_level=compression_level,
+            row_group_size=row_group_size,
+            parquet_version=parquet_version,
+            working_directory=tmp_dir_path,
+            parquet_metadata=original_metadata,
+            verbosity_mode=verbosity_mode,
+            duckdb_conn_kwargs=duckdb_conn_kwargs,
+        )
 
     return output_file_path
 
@@ -205,7 +206,6 @@ def _sort_with_duckdb(
     relation.to_parquet(str(index_file_path), compression="zstd")
 
     total_rows = connection.read_parquet(str(index_file_path)).count("*").fetchone()[0]
-    print("stopping conn")
     connection.close()
 
     current_file_idx = 0
@@ -214,31 +214,31 @@ def _sort_with_duckdb(
 
     while current_offset < total_rows:
         try:
-            # sql_query = f"""
-            # COPY (
-            #     WITH order_batch AS (
-            #         FROM read_parquet('{index_file_path}')
-            #         LIMIT {current_limit} OFFSET {current_offset}
-            #     )
-            #     SELECT input_data.* EXCLUDE (file_row_number)
-            #     FROM order_batch
-            #     JOIN read_parquet(
-            #         '{input_file_path}',
-            #         hive_partitioning=false,
-            #         file_row_number=true
-            #     ) input_data USING (file_row_number)
-            #     ORDER BY order_id
-            # ) TO '{output_dir_path}/{current_file_idx}.parquet' (
-            #     FORMAT 'parquet'
-            # )
-            # """
-            # run_query_with_memory_monitoring(
-            #     sql_query=sql_query,
-            #     tmp_dir_path=tmp_dir_path,
-            #     verbosity_mode=verbosity_mode,
-            #     preserve_insertion_order=True,
-            #     duckdb_conn_kwargs=duckdb_conn_kwargs,
-            # )
+            sql_query = f"""
+            COPY (
+                WITH order_batch AS (
+                    FROM read_parquet('{index_file_path}')
+                    LIMIT {current_limit} OFFSET {current_offset}
+                )
+                SELECT input_data.* EXCLUDE (file_row_number)
+                FROM order_batch
+                JOIN read_parquet(
+                    '{input_file_path}',
+                    hive_partitioning=false,
+                    file_row_number=true
+                ) input_data USING (file_row_number)
+                ORDER BY order_id
+            ) TO '{output_dir_path}/{current_file_idx}.parquet' (
+                FORMAT 'parquet'
+            )
+            """
+            run_query_with_memory_monitoring(
+                sql_query=sql_query,
+                tmp_dir_path=tmp_dir_path,
+                verbosity_mode=verbosity_mode,
+                preserve_insertion_order=True,
+                duckdb_conn_kwargs=duckdb_conn_kwargs,
+            )
 
             current_file_idx += 1
             current_offset += current_limit
