@@ -16,7 +16,6 @@ from rq_geo_toolkit.constants import (
 )
 from rq_geo_toolkit.duckdb import (
     DuckDBConnKwargs,
-    run_query_with_memory_monitoring,
     set_up_duckdb_connection,
 )
 
@@ -93,15 +92,15 @@ def sort_geoparquet_file_by_geometry(
         order_dir_path = tmp_dir_path / "ordered"
         order_dir_path.mkdir(parents=True, exist_ok=True)
 
-        # _sort_with_duckdb(
-        #     input_file_path=input_file_path,
-        #     output_dir_path=order_dir_path,
-        #     sort_extent=sort_extent,
-        #     tmp_dir_path=tmp_dir_path,
-        #     verbosity_mode=verbosity_mode,
-        #     progress_callback=progress_callback,
-        #     duckdb_conn_kwargs=duckdb_conn_kwargs,
-        # )
+        _sort_with_duckdb(
+            input_file_path=input_file_path,
+            output_dir_path=order_dir_path,
+            sort_extent=sort_extent,
+            tmp_dir_path=tmp_dir_path,
+            verbosity_mode=verbosity_mode,
+            progress_callback=progress_callback,
+            duckdb_conn_kwargs=duckdb_conn_kwargs,
+        )
 
         # original_metadata = pq.read_metadata(input_file_path)
 
@@ -215,31 +214,31 @@ def _sort_with_duckdb(
 
     while current_offset < total_rows:
         try:
-            sql_query = f"""
-            COPY (
-                WITH order_batch AS (
-                    FROM read_parquet('{index_file_path}')
-                    LIMIT {current_limit} OFFSET {current_offset}
-                )
-                SELECT input_data.* EXCLUDE (file_row_number)
-                FROM order_batch
-                JOIN read_parquet(
-                    '{input_file_path}',
-                    hive_partitioning=false,
-                    file_row_number=true
-                ) input_data USING (file_row_number)
-                ORDER BY order_id
-            ) TO '{output_dir_path}/{current_file_idx}.parquet' (
-                FORMAT 'parquet'
-            )
-            """
-            run_query_with_memory_monitoring(
-                sql_query=sql_query,
-                tmp_dir_path=tmp_dir_path,
-                verbosity_mode=verbosity_mode,
-                preserve_insertion_order=True,
-                duckdb_conn_kwargs=duckdb_conn_kwargs,
-            )
+            # sql_query = f"""
+            # COPY (
+            #     WITH order_batch AS (
+            #         FROM read_parquet('{index_file_path}')
+            #         LIMIT {current_limit} OFFSET {current_offset}
+            #     )
+            #     SELECT input_data.* EXCLUDE (file_row_number)
+            #     FROM order_batch
+            #     JOIN read_parquet(
+            #         '{input_file_path}',
+            #         hive_partitioning=false,
+            #         file_row_number=true
+            #     ) input_data USING (file_row_number)
+            #     ORDER BY order_id
+            # ) TO '{output_dir_path}/{current_file_idx}.parquet' (
+            #     FORMAT 'parquet'
+            # )
+            # """
+            # run_query_with_memory_monitoring(
+            #     sql_query=sql_query,
+            #     tmp_dir_path=tmp_dir_path,
+            #     verbosity_mode=verbosity_mode,
+            #     preserve_insertion_order=True,
+            #     duckdb_conn_kwargs=duckdb_conn_kwargs,
+            # )
 
             current_file_idx += 1
             current_offset += current_limit
