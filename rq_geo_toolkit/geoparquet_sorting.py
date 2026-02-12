@@ -93,15 +93,15 @@ def sort_geoparquet_file_by_geometry(
         order_dir_path = tmp_dir_path / "ordered"
         order_dir_path.mkdir(parents=True, exist_ok=True)
 
-        _sort_with_duckdb(
-            input_file_path=input_file_path,
-            output_dir_path=order_dir_path,
-            sort_extent=sort_extent,
-            tmp_dir_path=tmp_dir_path,
-            verbosity_mode=verbosity_mode,
-            progress_callback=progress_callback,
-            duckdb_conn_kwargs=duckdb_conn_kwargs,
-        )
+        # _sort_with_duckdb(
+        #     input_file_path=input_file_path,
+        #     output_dir_path=order_dir_path,
+        #     sort_extent=sort_extent,
+        #     tmp_dir_path=tmp_dir_path,
+        #     verbosity_mode=verbosity_mode,
+        #     progress_callback=progress_callback,
+        #     duckdb_conn_kwargs=duckdb_conn_kwargs,
+        # )
 
         # original_metadata = pq.read_metadata(input_file_path)
 
