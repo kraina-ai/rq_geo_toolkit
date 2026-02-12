@@ -149,6 +149,7 @@ def test_extension_installation_location() -> None:
                 tmp_dir_path=tmp_dir_path, preserve_insertion_order=True
             ) as connection:
                 connection.execute(query)
+                print("stopping conn")
 
         sort_geoparquet_file_by_geometry(
             input_file_path=save_path,

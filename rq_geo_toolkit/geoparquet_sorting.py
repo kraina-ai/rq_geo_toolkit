@@ -19,9 +19,6 @@ from rq_geo_toolkit.duckdb import (
     run_query_with_memory_monitoring,
     set_up_duckdb_connection,
 )
-from rq_geo_toolkit.geoparquet_compression import (
-    compress_parquet_with_duckdb,
-)
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
@@ -106,25 +103,25 @@ def sort_geoparquet_file_by_geometry(
             duckdb_conn_kwargs=duckdb_conn_kwargs,
         )
 
-        original_metadata = pq.read_metadata(input_file_path)
+        # original_metadata = pq.read_metadata(input_file_path)
 
         if remove_input_file:
             input_file_path.unlink()
 
-        order_files = sorted(order_dir_path.glob("*.parquet"), key=lambda x: int(x.stem))
+        # order_files = sorted(order_dir_path.glob("*.parquet"), key=lambda x: int(x.stem))
 
-        compress_parquet_with_duckdb(
-            input_file_path=order_files,
-            output_file_path=output_file_path,
-            compression=compression,
-            compression_level=compression_level,
-            row_group_size=row_group_size,
-            parquet_version=parquet_version,
-            working_directory=tmp_dir_path,
-            parquet_metadata=original_metadata,
-            verbosity_mode=verbosity_mode,
-            duckdb_conn_kwargs=duckdb_conn_kwargs,
-        )
+        # compress_parquet_with_duckdb(
+        #     input_file_path=order_files,
+        #     output_file_path=output_file_path,
+        #     compression=compression,
+        #     compression_level=compression_level,
+        #     row_group_size=row_group_size,
+        #     parquet_version=parquet_version,
+        #     working_directory=tmp_dir_path,
+        #     parquet_metadata=original_metadata,
+        #     verbosity_mode=verbosity_mode,
+        #     duckdb_conn_kwargs=duckdb_conn_kwargs,
+        # )
 
     return output_file_path
 
