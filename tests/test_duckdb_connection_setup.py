@@ -166,3 +166,6 @@ def test_extension_installation_location() -> None:
         print(generated_files_names)
         assert "spatial.duckdb_extension" in generated_files_names
         assert "h3.duckdb_extension" in generated_files_names
+
+        import gc
+        gc.collect()
