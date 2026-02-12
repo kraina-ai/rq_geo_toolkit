@@ -1,7 +1,9 @@
 """Test if provisioning duckdb connection works."""
 
+import shutil
 import tempfile
 from pathlib import Path
+from time import sleep
 
 import duckdb
 import pytest
@@ -134,7 +136,10 @@ def test_extension_installation_location() -> None:
         USING SAMPLE 100 ROWS
     ) TO '{save_path}' (FORMAT parquet);
     """
-    with tempfile.TemporaryDirectory(dir=Path(__file__).parent.resolve()) as tmp_dir_name:
+
+    with tempfile.TemporaryDirectory(
+        dir=Path(__file__).parent.resolve(), delete=False
+    ) as tmp_dir_name:
         tmp_dir_path = Path(tmp_dir_name)
 
         # print(tmp_dir_name)
@@ -167,5 +172,9 @@ def test_extension_installation_location() -> None:
         assert "spatial.duckdb_extension" in generated_files_names
         assert "h3.duckdb_extension" in generated_files_names
 
-        import gc
-        gc.collect()
+    while tmp_dir_path.exists():
+        try:
+            shutil.rmtree(tmp_dir_path)
+        except Exception:
+            print("Cannot remove directory, waiting 5 seconds.")
+            sleep(5)
