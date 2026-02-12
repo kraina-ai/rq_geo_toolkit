@@ -116,3 +116,23 @@ def test_missing_h3_community_extension() -> None:
         run_query_with_memory_monitoring(
             "SELECT h3_latlng_to_cell(37.7887987, -122.3931578, 9)", tmp_dir_path=Path(tmp_dir_name)
         )
+
+
+def test_extension_installation_location() -> None:
+    """Test if properly installs extensions."""
+    # extension_directory
+    with tempfile.TemporaryDirectory(dir=Path(__file__).parent.resolve()) as tmp_dir_name:
+        print(tmp_dir_name)
+        run_query_with_memory_monitoring(
+            "SELECT h3_latlng_to_cell(37.7887987, -122.3931578, 9)",
+            tmp_dir_path=Path(tmp_dir_name),
+            duckdb_conn_kwargs={
+                "config_kwargs": {"extension_directory": tmp_dir_name},
+                "community_extensions_to_load": ["h3"],
+            },
+        )
+
+        generated_files_names = [f.name for f in Path(tmp_dir_name).glob("**/*") if f.is_file()]
+        print(generated_files_names)
+        assert "spatial.duckdb_extension" in generated_files_names
+        assert "h3.duckdb_extension" in generated_files_names
