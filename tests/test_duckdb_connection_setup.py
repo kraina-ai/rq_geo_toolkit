@@ -7,6 +7,8 @@ import duckdb
 import pytest
 
 from rq_geo_toolkit.duckdb import run_query_with_memory_monitoring, set_up_duckdb_connection
+from rq_geo_toolkit.geoparquet_sorting import sort_geoparquet_file_by_geometry
+from tests.conftest import load_biggest_overture_place_file_from_stac
 
 
 def test_local_file_name() -> None:
@@ -120,12 +122,39 @@ def test_missing_h3_community_extension() -> None:
 
 def test_extension_installation_location() -> None:
     """Test if properly installs extensions."""
-    # extension_directory
+    download_file_url = load_biggest_overture_place_file_from_stac()
+    print(download_file_url)
+    save_path = Path("files/unsorted_small_example.parquet")
+    save_path.parent.mkdir(exist_ok=True, parents=True)
+
+    query = f"""
+    COPY (
+        SELECT id, geometry
+        FROM read_parquet('{download_file_url}')
+        USING SAMPLE 100 ROWS
+    ) TO '{save_path}' (FORMAT parquet);
+    """
     with tempfile.TemporaryDirectory(dir=Path(__file__).parent.resolve()) as tmp_dir_name:
-        print(tmp_dir_name)
-        run_query_with_memory_monitoring(
-            "SELECT h3_latlng_to_cell(37.7887987, -122.3931578, 9)",
-            tmp_dir_path=Path(tmp_dir_name),
+        tmp_dir_path = Path(tmp_dir_name)
+
+        # print(tmp_dir_name)
+        # run_query_with_memory_monitoring(
+        #     "SELECT h3_latlng_to_cell(37.7887987, -122.3931578, 9)",
+        #     tmp_dir_path=Path(tmp_dir_name),
+        #     duckdb_conn_kwargs=conn_kwargs,
+        # )
+
+        if not save_path.exists():
+            with set_up_duckdb_connection(
+                tmp_dir_path=tmp_dir_path, preserve_insertion_order=True
+            ) as connection:
+                connection.execute(query)
+
+        sort_geoparquet_file_by_geometry(
+            input_file_path=save_path,
+            output_file_path=tmp_dir_path / "sorted.parquet",
+            working_directory=tmp_dir_path,
+            remove_input_file=False,
             duckdb_conn_kwargs={
                 "config_kwargs": {"extension_directory": tmp_dir_name},
                 "community_extensions_to_load": ["h3"],

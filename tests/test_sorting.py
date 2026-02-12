@@ -3,28 +3,13 @@
 import tempfile
 from pathlib import Path
 
-import pandas as pd
 import pyarrow.parquet as pq
-from overturemaps.core import get_latest_release
 from tqdm import tqdm
 
 from rq_geo_toolkit.duckdb import set_up_duckdb_connection
 from rq_geo_toolkit.geoparquet_compression import compress_parquet_with_duckdb
 from rq_geo_toolkit.geoparquet_sorting import sort_geoparquet_file_by_geometry
-
-
-def load_biggest_overture_place_file_from_stac() -> str:
-    """Load the biggest place type file from Overture Maps STAC catalog."""
-    latest_om_release = get_latest_release()
-    stac_catalog = pd.read_parquet(
-        f"https://stac.overturemaps.org/{latest_om_release}/collections.parquet"
-    )
-    s3_url = str(
-        stac_catalog[stac_catalog["collection"] == "place"]
-        .sort_values("num_rows", ascending=False)["assets"]
-        .iloc[0]["aws"]["alternate"]["s3"]["href"]
-    )
-    return s3_url
+from tests.conftest import load_biggest_overture_place_file_from_stac
 
 
 def test_sorting() -> None:
