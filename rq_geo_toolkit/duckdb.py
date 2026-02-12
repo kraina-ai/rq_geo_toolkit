@@ -75,6 +75,7 @@ def set_up_duckdb_connection(
     Returns:
         duckdb.DuckDBPyConnection: DuckDB connection object.
     """
+    print("creating conn")
     duckdb_conn_kwargs = duckdb_conn_kwargs or {}
     randomize_db_file_name = duckdb_conn_kwargs.get("randomize_db_file_name", False)
     config_kwargs = duckdb_conn_kwargs.get("config_kwargs")
@@ -317,6 +318,7 @@ def _run_query(
         ) as conn,
     ):
         conn.sql(sql_query)
+        print("stopping conn")
 
 
 def _run_query_with_existing_connection(

@@ -209,6 +209,7 @@ def _sort_with_duckdb(
     relation.to_parquet(str(index_file_path), compression="zstd")
 
     total_rows = connection.read_parquet(str(index_file_path)).count("*").fetchone()[0]
+    print("stopping conn")
     connection.close()
 
     current_file_idx = 0

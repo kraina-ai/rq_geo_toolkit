@@ -212,6 +212,7 @@ def _compress_with_memory_limit(
         """
     )
 
+    print("stopping conn")
     connection.close()
 
 
