@@ -172,7 +172,7 @@ def compress_query_with_duckdb(
 def _compress_with_memory_limit(
     query: str,
     output_file_path: Path,
-    original_metadata_string: str,
+    original_metadata_string: Optional[str],
     compression: str,
     compression_level: int,
     row_group_size: int,
@@ -199,6 +199,9 @@ def _compress_with_memory_limit(
     compression_level_query = (
         f"COMPRESSION_LEVEL {compression_level}," if compression == "zstd" else ""
     )
+    kv_metadata_query = (
+        f"KV_METADATA {original_metadata_string}," if original_metadata_string is not None else ""
+    )
     connection.execute(
         f"""
         COPY ({query}) TO '{output_file_path}' (
@@ -206,8 +209,8 @@ def _compress_with_memory_limit(
             {parquet_version_query}
             COMPRESSION {compression},
             {compression_level_query}
-            ROW_GROUP_SIZE {row_group_size},
-            KV_METADATA {original_metadata_string}
+            {kv_metadata_query}
+            ROW_GROUP_SIZE {row_group_size}
         );
         """
     )
@@ -217,7 +220,9 @@ def _compress_with_memory_limit(
 
 def _parquet_schema_metadata_to_duckdb_kv_metadata(
     parquet_file_metadata: pq.FileMetaData,
-) -> str:
+) -> Optional[str]:
+    if parquet_file_metadata.metadata is None:
+        return None
     kv_pairs = []
     for key, value in parquet_file_metadata.metadata.items():
         escaped_key = sql_escape(key.decode())
