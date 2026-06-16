@@ -118,6 +118,7 @@ dev = [
     "types-requests",
     "setuptools>=45.0.0",
     "ipykernel",
+    "ipywidgets",
     "matplotlib",
 ]
 test = [
