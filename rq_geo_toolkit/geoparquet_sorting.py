@@ -1,5 +1,6 @@
 """Module for sorting GeoParquet files."""
 
+import math
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Optional, Union
@@ -24,12 +25,15 @@ from rq_geo_toolkit.geoparquet_compression import compress_parquet_with_duckdb
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
 
+    import duckdb
+
     from rq_geo_toolkit.rich_utils import VERBOSITY_MODE
 
 
 def sort_geoparquet_file_by_geometry(
     input_file_path: Path,
     output_file_path: Optional[Path] = None,
+    sort_algorithm: Literal["str", "hilbert"] = "str",
     sort_extent: Optional[tuple[float, float, float, float]] = None,
     compression: str = PARQUET_COMPRESSION,
     compression_level: int = PARQUET_COMPRESSION_LEVEL,
@@ -49,9 +53,16 @@ def sort_geoparquet_file_by_geometry(
         output_file_path (Optional[Path], optional): Output GeoParquet file path.
             If not provided, will generate file name based on input file name with
             `_sorted` suffix. Defaults to None.
+        sort_algorithm (Literal["str", "hilbert"], optional): Algorithm used to generate the
+            ordering index. "str" uses Sort-Tile-Recursive packing (sorts geometries into
+            vertical strips by centroid X, then orders each strip by centroid Y in a serpentine
+            pattern), which produces row groups with low bounding-box overlap and is tuned to the
+            target `row_group_size`. "hilbert" orders geometries along a Hilbert space-filling
+            curve. Defaults to "str".
         sort_extent (Optional[tuple[float, float, float, float]], optional): Extent to use
             in the ST_Hilbert function. If not, will calculate extent from the
-            geometries in the file. Defaults to None.
+            geometries in the file. Only used by the "hilbert" algorithm; ignored for "str".
+            Defaults to None.
         compression (str, optional): Compression of the final parquet file.
             Check https://duckdb.org/docs/sql/statements/copy#parquet-options for more info.
             Remember to change compression level together with this parameter.
@@ -97,7 +108,9 @@ def sort_geoparquet_file_by_geometry(
         _sort_with_duckdb(
             input_file_path=input_file_path,
             output_dir_path=order_dir_path,
+            sort_algorithm=sort_algorithm,
             sort_extent=sort_extent,
+            row_group_size=row_group_size,
             tmp_dir_path=tmp_dir_path,
             verbosity_mode=verbosity_mode,
             progress_callback=progress_callback,
@@ -127,21 +140,12 @@ def sort_geoparquet_file_by_geometry(
     return output_file_path
 
 
-def _sort_with_duckdb(
+def _hilbert_index_select_sql(
     input_file_path: Path,
-    output_dir_path: Path,
     sort_extent: Optional[tuple[float, float, float, float]],
-    tmp_dir_path: Path,
-    verbosity_mode: "VERBOSITY_MODE",
-    progress_callback: Optional["Callable[[int], None]"] = None,
-    duckdb_conn_kwargs: Optional[DuckDBConnKwargs] = None,
-) -> None:
-    connection = set_up_duckdb_connection(
-        tmp_dir_path,
-        preserve_insertion_order=True,
-        duckdb_conn_kwargs=duckdb_conn_kwargs,
-    )
-
+    connection: "duckdb.DuckDBPyConnection",
+) -> str:
+    """Build a SELECT producing (file_row_number, order_id) ordered by a Hilbert curve."""
     struct_type = "::STRUCT(min_x DOUBLE, min_y DOUBLE, max_x DOUBLE, max_y DOUBLE)"
     connection.sql(
         f"""
@@ -196,12 +200,101 @@ def _sort_with_duckdb(
         )
         """
 
-    relation = connection.sql(
-        f"""
+    return f"""
         SELECT file_row_number, row_number() OVER (ORDER BY {order_clause}) as order_id
         FROM read_parquet('{input_file_path}', hive_partitioning=false, file_row_number=true)
         """
+
+
+def _str_index_select_sql(
+    input_file_path: Path,
+    row_group_size: int,
+    connection: "duckdb.DuckDBPyConnection",
+) -> str:
+    """
+    Build a SELECT producing (file_row_number, order_id) using Sort-Tile-Recursive packing.
+
+    STR splits the dataset into vertical strips based on geometry centroid X, then orders each
+    strip by centroid Y in a serpentine (boustrophedon) pattern. The strip count is derived from
+    the target `row_group_size` so that each resulting row group holds roughly that many rows with
+    a tight, low-overlap bounding box - which improves spatial pruning during reads.
+
+    Reference: https://github.com/Kanahiro/spatial-sort-benchmark
+    """
+    total_rows = connection.execute(
+        f"SELECT count(*) FROM read_parquet('{input_file_path}', hive_partitioning=false)"
+    ).fetchone()[0]
+
+    tile_count = max(1, math.ceil(total_rows / row_group_size))
+    strip_count = max(1, math.ceil(math.sqrt(tile_count)))
+    strip_size = math.ceil(total_rows / strip_count)
+
+    # Centroids are derived from the geometry bounding box (cheaper than ST_Centroid and stable
+    # for every geometry type). file_row_number is used as a deterministic tie-breaker.
+    return f"""
+        WITH src AS (
+            SELECT
+                file_row_number,
+                (ST_XMin(geometry) + ST_XMax(geometry)) / 2.0 AS __cx,
+                (ST_YMin(geometry) + ST_YMax(geometry)) / 2.0 AS __cy
+            FROM read_parquet('{input_file_path}', hive_partitioning=false, file_row_number=true)
+        ),
+        x_ranked AS (
+            SELECT
+                file_row_number,
+                __cx,
+                __cy,
+                floor(
+                    (row_number() OVER (ORDER BY __cx, __cy, file_row_number) - 1) / {strip_size}
+                )::BIGINT AS __strip
+            FROM src
+        )
+        SELECT
+            file_row_number,
+            row_number() OVER (
+                ORDER BY
+                    __strip,
+                    CASE WHEN __strip % 2 = 0 THEN __cy ELSE -__cy END,
+                    __cx,
+                    file_row_number
+            ) AS order_id
+        FROM x_ranked
+        """
+
+
+def _sort_with_duckdb(
+    input_file_path: Path,
+    output_dir_path: Path,
+    sort_extent: Optional[tuple[float, float, float, float]],
+    tmp_dir_path: Path,
+    verbosity_mode: "VERBOSITY_MODE",
+    sort_algorithm: Literal["str", "hilbert"] = "str",
+    row_group_size: int = PARQUET_ROW_GROUP_SIZE,
+    progress_callback: Optional["Callable[[int], None]"] = None,
+    duckdb_conn_kwargs: Optional[DuckDBConnKwargs] = None,
+) -> None:
+    connection = set_up_duckdb_connection(
+        tmp_dir_path,
+        preserve_insertion_order=True,
+        duckdb_conn_kwargs=duckdb_conn_kwargs,
     )
+
+    if sort_algorithm == "str":
+        index_select_sql = _str_index_select_sql(
+            input_file_path=input_file_path,
+            row_group_size=row_group_size,
+            connection=connection,
+        )
+    elif sort_algorithm == "hilbert":
+        index_select_sql = _hilbert_index_select_sql(
+            input_file_path=input_file_path,
+            sort_extent=sort_extent,
+            connection=connection,
+        )
+    else:
+        raise ValueError(f"Unknown sort algorithm: {sort_algorithm}")
+
+    relation = connection.sql(index_select_sql)
 
     index_file_path = tmp_dir_path / "order_index.parquet"
     relation.to_parquet(str(index_file_path), compression="zstd")
