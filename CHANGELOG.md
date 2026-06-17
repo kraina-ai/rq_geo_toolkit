@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.6.0] - 2026-06-16
+
 ### Added
 
 - Support for sorting geoparquet with STR algorithm - changed to default
@@ -155,7 +157,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Georelated constants
 - DuckDB initialization function
 
-[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.4.0...HEAD
+[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.6.0...HEAD
+[2026.6.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.4.0...2026.6.0
 [2026.4.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.2.1...2026.4.0
 [2026.2.1]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.2.0...2026.2.1
 [2026.2.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2025.9.0...2026.2.0
