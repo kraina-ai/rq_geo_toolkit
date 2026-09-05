@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- False-positive memory limits in containerized environments by using cgroup-aware memory detection (fixes kraina-ai/quackosm#319)
+
 ## [2026.6.0] - 2026-06-16
 
 ### Added

@@ -16,10 +16,10 @@ else:
     from typing_extensions import TypedDict
 
 import duckdb
-import psutil
 from packaging import version
 from rich import print as rprint
 
+from rq_geo_toolkit._system_memory import get_memory_status
 from rq_geo_toolkit.constants import MEMORY_1GB
 from rq_geo_toolkit.multiprocessing_utils import WorkerProcess, run_process_with_memory_monitoring
 
@@ -133,13 +133,13 @@ def run_duckdb_query_function_with_memory_limit(
     duckdb_conn_kwargs: Optional[DuckDBConnKwargs] = None,
 ) -> tuple[float, int]:
     """Run function with duckdb query and limit threads automatically."""
-    current_memory_gb_limit = current_memory_gb_limit or ceil(
-        psutil.virtual_memory().total / MEMORY_1GB
+    current_memory_gb_limit = float(
+        current_memory_gb_limit or ceil(get_memory_status().total_bytes / MEMORY_1GB)
     )
-    current_threads_limit = (
-        current_threads_limit
-        or duckdb.sql("SELECT current_setting('threads') AS threads").fetchone()[0]
-    )
+    threads_result = duckdb.sql("SELECT current_setting('threads') AS threads").fetchone()
+    if threads_result is None:
+        raise RuntimeError("Failed to retrieve DuckDB threads setting.")
+    current_threads_limit = current_threads_limit or threads_result[0]
 
     while True:
         try:
@@ -153,7 +153,14 @@ def run_duckdb_query_function_with_memory_limit(
                     duckdb_conn_kwargs=duckdb_conn_kwargs,
                 )
                 process = WorkerProcess(target=f, args=args or (), kwargs=kwargs or {})
-                run_process_with_memory_monitoring(process)
+                override_bytes = (
+                    int(current_memory_gb_limit * MEMORY_1GB)
+                    if current_memory_gb_limit is not None
+                    else None
+                )
+                run_process_with_memory_monitoring(
+                    process, total_bytes_override=override_bytes
+                )
 
             return current_memory_gb_limit, current_threads_limit
         except (duckdb.OutOfMemoryException, MemoryError) as ex:
@@ -228,10 +235,15 @@ def run_query_with_memory_monitoring(
             duckdb_conn_kwargs=duckdb_conn_kwargs,
         )
     elif connection is not None:
-        current_memory_gb_limit = ceil(psutil.virtual_memory().total / MEMORY_1GB)
-        current_threads_limit = connection.sql(
+        current_memory_gb_limit = float(
+            ceil(get_memory_status().total_bytes / MEMORY_1GB)
+        )
+        current_threads_limit_result = connection.sql(
             "SELECT current_setting('threads') AS threads"
-        ).fetchone()[0]
+        ).fetchone()
+        if current_threads_limit_result is None:
+            raise RuntimeError("Failed to retrieve DuckDB threads setting.")
+        current_threads_limit = current_threads_limit_result[0]
 
         while True:
             try:
@@ -239,11 +251,13 @@ def run_query_with_memory_monitoring(
                     connection.execute(f"SET memory_limit = '{current_memory_gb_limit}GB';")
                     connection.execute(f"SET threads = {current_threads_limit};")
 
-                    actual_memory = psutil.virtual_memory()
-                    percentage_threshold = 95
-                    if (actual_memory.total * 0.05) > MEMORY_1GB:  # pragma: no cover
+                    actual_memory = get_memory_status()
+                    percentage_threshold: float = 95
+                    if (actual_memory.total_bytes * 0.05) > MEMORY_1GB:  # pragma: no cover
                         percentage_threshold = (
-                            100 * (actual_memory.total - MEMORY_1GB) / actual_memory.total
+                            100
+                            * (actual_memory.total_bytes - MEMORY_1GB)
+                            / actual_memory.total_bytes
                         )
 
                     query_execution_future = executor.submit(
@@ -252,8 +266,8 @@ def run_query_with_memory_monitoring(
 
                     sleep_time = 0.1
                     while query_execution_future.running():
-                        actual_memory = psutil.virtual_memory()
-                        if actual_memory.percent > percentage_threshold:  # pragma: no cover
+                        actual_memory = get_memory_status()
+                        if actual_memory.percent_used > percentage_threshold:  # pragma: no cover
                             connection.interrupt()
                             query_execution_future.cancel()
                             raise MemoryError()
