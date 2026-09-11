@@ -5,8 +5,7 @@ import traceback
 from time import sleep
 from typing import Any, Optional
 
-import psutil
-
+from rq_geo_toolkit._system_memory import get_memory_status
 from rq_geo_toolkit.constants import MEMORY_1GB
 
 
@@ -36,22 +35,29 @@ class WorkerProcess(multiprocessing.Process):
         return self._exception
 
 
-def run_process_with_memory_monitoring(process: WorkerProcess) -> None:
+def run_process_with_memory_monitoring(
+    process: WorkerProcess,
+    total_bytes_override: int | None = None,
+) -> None:
     """
     Start a process and monitor the memory usage.
 
     Raises exceptions reported within process.
     """
-    actual_memory = psutil.virtual_memory()
+    actual_memory = get_memory_status(total_bytes_override=total_bytes_override)
     process.start()
-    percentage_threshold = 95
-    if (actual_memory.total * 0.05) > MEMORY_1GB:  # pragma: no cover
-        percentage_threshold = 100 * (actual_memory.total - MEMORY_1GB) / actual_memory.total
+    percentage_threshold: float = 95
+    if (actual_memory.total_bytes * 0.05) > MEMORY_1GB:  # pragma: no cover
+        percentage_threshold = (
+            100
+            * (actual_memory.total_bytes - MEMORY_1GB)
+            / actual_memory.total_bytes
+        )
 
     sleep_time = 0.1
     while process.is_alive():
-        actual_memory = psutil.virtual_memory()
-        if actual_memory.percent > percentage_threshold:  # pragma: no cover
+        actual_memory = get_memory_status(total_bytes_override=total_bytes_override)
+        if actual_memory.percent_used > percentage_threshold:  # pragma: no cover
             process.terminate()
             process.join()
             raise MemoryError()
