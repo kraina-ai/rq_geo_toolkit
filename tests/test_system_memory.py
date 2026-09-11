@@ -100,6 +100,9 @@ def test_cgroup_v1_with_limit_and_inactive_file(tmp_path: Path) -> None:
     (v1_base / "memory.usage_in_bytes").write_text("4294967296")
     (v1_base / "memory.stat").write_text("total_inactive_file 1073741824\n")
 
+    proc_self_cgroup = tmp_path / "proc_self_cgroup"
+    proc_self_cgroup.write_text("11:memory:/\n")
+
     with patch.multiple(
         "rq_geo_toolkit._system_memory",
         _CGROUP_V2_CONTROLLERS_PATH=tmp_path / "nonexistent",
@@ -107,11 +110,12 @@ def test_cgroup_v1_with_limit_and_inactive_file(tmp_path: Path) -> None:
         _CGROUP_V1_LIMIT_PATH=v1_base / "memory.limit_in_bytes",
         _CGROUP_V1_USAGE_PATH=v1_base / "memory.usage_in_bytes",
         _CGROUP_V1_STAT_PATH=v1_base / "memory.stat",
+        _PROC_SELF_CGROUP_PATH=proc_self_cgroup,
     ):
         status = get_memory_status()
     assert status.source == "cgroup_v1"
     assert status.total_bytes == 8589934592
-    assert status.used_bytes == 3221225472
+    assert status.used_bytes == 3221225472  # 4294967296 - 1073741824
     assert pytest.approx(status.percent_used) == 100 * 3221225472 / 8589934592
 
 
@@ -124,12 +128,16 @@ def test_cgroup_v1_unlimited_sentinel_falls_through(tmp_path: Path) -> None:
     (v1_base / "memory.limit_in_bytes").write_text("9223372036854771712")
     (v1_base / "memory.usage_in_bytes").write_text("12345")
 
+    proc_self_cgroup = tmp_path / "proc_self_cgroup"
+    proc_self_cgroup.write_text("11:memory:/\n")
+
     with patch.multiple(
         "rq_geo_toolkit._system_memory",
         _CGROUP_V2_CONTROLLERS_PATH=tmp_path / "nonexistent",
         _CGROUP_V1_MEMORY_PATH=v1_base,
         _CGROUP_V1_LIMIT_PATH=v1_base / "memory.limit_in_bytes",
         _CGROUP_V1_USAGE_PATH=v1_base / "memory.usage_in_bytes",
+        _PROC_SELF_CGROUP_PATH=proc_self_cgroup,
     ):
         status = get_memory_status()
     assert status.source == "psutil"
