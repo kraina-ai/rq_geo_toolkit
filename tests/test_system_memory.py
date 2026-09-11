@@ -102,6 +102,7 @@ def test_cgroup_v1_with_limit_and_inactive_file(tmp_path: Path) -> None:
 
     with patch.multiple(
         "rq_geo_toolkit._system_memory",
+        _CGROUP_V2_CONTROLLERS_PATH=tmp_path / "nonexistent",
         _CGROUP_V1_MEMORY_PATH=v1_base,
         _CGROUP_V1_LIMIT_PATH=v1_base / "memory.limit_in_bytes",
         _CGROUP_V1_USAGE_PATH=v1_base / "memory.usage_in_bytes",
@@ -125,6 +126,7 @@ def test_cgroup_v1_unlimited_sentinel_falls_through(tmp_path: Path) -> None:
 
     with patch.multiple(
         "rq_geo_toolkit._system_memory",
+        _CGROUP_V2_CONTROLLERS_PATH=tmp_path / "nonexistent",
         _CGROUP_V1_MEMORY_PATH=v1_base,
         _CGROUP_V1_LIMIT_PATH=v1_base / "memory.limit_in_bytes",
         _CGROUP_V1_USAGE_PATH=v1_base / "memory.usage_in_bytes",

@@ -153,14 +153,7 @@ def run_duckdb_query_function_with_memory_limit(
                     duckdb_conn_kwargs=duckdb_conn_kwargs,
                 )
                 process = WorkerProcess(target=f, args=args or (), kwargs=kwargs or {})
-                override_bytes = (
-                    int(current_memory_gb_limit * MEMORY_1GB)
-                    if current_memory_gb_limit is not None
-                    else None
-                )
-                run_process_with_memory_monitoring(
-                    process, total_bytes_override=override_bytes
-                )
+                run_process_with_memory_monitoring(process)
 
             return current_memory_gb_limit, current_threads_limit
         except (duckdb.OutOfMemoryException, MemoryError) as ex:
