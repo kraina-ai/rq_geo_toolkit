@@ -7,4 +7,4 @@ This library contains set of functionalities that are reused in other libraries 
 organization like QuackOSM and OvertureMaestro.
 """
 
-__version__ = "2026.6.0"
+__version__ = "2026.9.0"
