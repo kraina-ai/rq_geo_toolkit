@@ -161,3 +161,22 @@ def test_extension_installation_location() -> None:
         print(generated_files_names)
         assert "spatial.duckdb_extension" in generated_files_names
         assert "h3.duckdb_extension" in generated_files_names
+
+
+def test_raising_duckdb_exceptions_inside_external_process() -> None:
+    """Test if wrong queries raise an exception."""
+    with (
+        pytest.raises(duckdb.BinderException),
+        tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir_name,
+    ):
+        run_query_with_memory_monitoring("SELECT geom", tmp_dir_path=Path(tmp_dir_name))
+
+
+def test_raising_duckdb_exceptions_within_shared_connection() -> None:
+    """Test if wrong queries raise an exception."""
+    with (
+        pytest.raises(duckdb.BinderException),
+        duckdb.connect(
+        ) as connection,
+    ):
+        run_query_with_memory_monitoring("SELECT geom", connection=connection)

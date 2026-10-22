@@ -268,7 +268,9 @@ def run_query_with_memory_monitoring(
                         sleep(sleep_time)
                         sleep_time = min(sleep_time + 0.1, 1.0)
 
-                    query_execution_future.exception()
+                    query_exception = query_execution_future.exception()
+                    if query_exception is not None:
+                        raise query_exception
 
                     if query_execution_future.cancelled():
                         raise MemoryError()

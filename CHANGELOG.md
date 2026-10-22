@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Fixed
+
+- Added automatic exception raising inside `run_query_with_memory_monitoring` function
+
 ## [2026.9.0] - 2026-09-11
 
 ### Fixed
