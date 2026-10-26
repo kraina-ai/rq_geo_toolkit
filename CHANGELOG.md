@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.10.1] - 2026-10-26
+
 ### Fixed
 
 - Changed Python API calls to DuckDB relations after [v2.0 release](https://duckdb.org/docs/2.0/clients/python/migration)
@@ -173,7 +175,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Georelated constants
 - DuckDB initialization function
 
-[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.10.0...HEAD
+[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.10.1...HEAD
+[2026.10.1]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.10.0...2026.10.1
 [2026.10.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.9.0...2026.10.0
 [2026.9.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.6.0...2026.9.0
 [2026.6.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.4.0...2026.6.0
