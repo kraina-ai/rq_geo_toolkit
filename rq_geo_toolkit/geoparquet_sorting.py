@@ -221,9 +221,9 @@ def _str_index_select_sql(
 
     Reference: https://github.com/Kanahiro/spatial-sort-benchmark
     """
-    total_rows = connection.execute(
+    total_rows = connection.sql(
         f"SELECT count(*) FROM read_parquet('{input_file_path}', hive_partitioning=false)"
-    ).fetchone()[0]
+    ).limit(1).fetchall()[0][0]
 
     tile_count = max(1, math.ceil(total_rows / row_group_size))
     strip_count = max(1, math.ceil(math.sqrt(tile_count)))
@@ -299,7 +299,7 @@ def _sort_with_duckdb(
     index_file_path = tmp_dir_path / "order_index.parquet"
     relation.to_parquet(str(index_file_path), compression="zstd")
 
-    total_rows = connection.read_parquet(str(index_file_path)).count("*").fetchone()[0]
+    total_rows = connection.read_parquet(str(index_file_path)).count("*").limit(1).fetchall()[0][0]
     connection.close()
 
     current_file_idx = 0
