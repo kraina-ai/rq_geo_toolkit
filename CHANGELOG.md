@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Changed Python API calls to DuckDB relations after [v2.0 release](https://duckdb.org/docs/2.0/clients/python/migration)
+
 ## [2026.10.0] - 2026-10-22
 
-## Fixed
+### Fixed
 
 - Added automatic exception raising inside `run_query_with_memory_monitoring` function
 

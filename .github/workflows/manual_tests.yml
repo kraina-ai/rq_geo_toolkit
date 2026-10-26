@@ -31,8 +31,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install pdm
         run: pip install pdm uv
+      - name: Generate lock with newest dependencies
+        run: pdm lock --lockfile pylock.newest.toml --python '==${{ matrix.python-version }}.*' -dG test
       - name: Generate requirements.txt
-        run: pdm export -dG test -f requirements -o requirements.test.txt
+        run: pdm export -dG test --lockfile pylock.newest.toml -f requirements -o requirements.test.txt
       - name: Install rq_geo_toolkit
         run: |
           uv pip install -e "rq_geo_toolkit @ ." -r requirements.test.txt --system

@@ -46,7 +46,7 @@ def test_query_provisioning() -> None:
     ):
         threads_limit_provisioned = conn.sql(
             "SELECT current_setting('threads') AS threads"
-        ).fetchone()[0]
+        ).limit(1).fetchall()[0][0]
         assert threads_limit_provisioned == 1
 
 
@@ -60,7 +60,7 @@ def test_conn_config() -> None:
     ):
         threads_limit_provisioned = conn.sql(
             "SELECT current_setting('threads') AS threads"
-        ).fetchone()[0]
+        ).limit(1).fetchall()[0][0]
         assert threads_limit_provisioned == 1
 
 
@@ -79,7 +79,7 @@ def test_loading_official_extensions() -> None:
                 FROM duckdb_extensions() WHERE loaded AND extension_name = 'vss'
             ) AS vss_loaded;
             """
-        ).fetchone()[0]
+        ).limit(1).fetchall()[0][0]
         assert vss_loaded
 
 
@@ -95,7 +95,7 @@ def test_missing_vss_official_extension() -> None:
                 FROM duckdb_extensions() WHERE loaded AND extension_name = 'vss'
             ) AS vss_loaded;
             """
-        ).fetchone()[0]
+        ).limit(1).fetchall()[0][0]
         assert not vss_loaded
 
 

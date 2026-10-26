@@ -136,7 +136,9 @@ def run_duckdb_query_function_with_memory_limit(
     current_memory_gb_limit = float(
         current_memory_gb_limit or ceil(get_memory_status().total_bytes / MEMORY_1GB)
     )
-    threads_result = duckdb.sql("SELECT current_setting('threads') AS threads").fetchone()
+    threads_result = (
+        duckdb.sql("SELECT current_setting('threads') AS threads").limit(1).fetchall()[0]
+    )
     if threads_result is None:
         raise RuntimeError("Failed to retrieve DuckDB threads setting.")
     current_threads_limit = current_threads_limit or threads_result[0]
@@ -228,12 +230,10 @@ def run_query_with_memory_monitoring(
             duckdb_conn_kwargs=duckdb_conn_kwargs,
         )
     elif connection is not None:
-        current_memory_gb_limit = float(
-            ceil(get_memory_status().total_bytes / MEMORY_1GB)
+        current_memory_gb_limit = float(ceil(get_memory_status().total_bytes / MEMORY_1GB))
+        current_threads_limit_result = (
+            connection.sql("SELECT current_setting('threads') AS threads").limit(1).fetchall()[0]
         )
-        current_threads_limit_result = connection.sql(
-            "SELECT current_setting('threads') AS threads"
-        ).fetchone()
         if current_threads_limit_result is None:
             raise RuntimeError("Failed to retrieve DuckDB threads setting.")
         current_threads_limit = current_threads_limit_result[0]
