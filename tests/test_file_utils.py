@@ -2,6 +2,7 @@
 
 import tempfile
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -31,15 +32,20 @@ def test_concurrent_writers_produce_complete_file() -> None:
             while not writing_finished.is_set():
                 try:
                     read_table = pq.read_table(output_file_path)
-                except FileNotFoundError:
+                # on Windows, the file can't be opened while it's being replaced
+                except (FileNotFoundError, PermissionError):
                     continue
                 assert read_table.equals(table)
                 complete_reads += 1
+                # give writers a chance to replace the file, which is locked on Windows when open
+                time.sleep(0.01)
 
         with ThreadPoolExecutor(max_workers=9) as executor:
             reader = executor.submit(read)
-            list(executor.map(write, range(32)))
-            writing_finished.set()
+            try:
+                list(executor.map(write, range(32)))
+            finally:
+                writing_finished.set()
             reader.result()
 
         assert complete_reads > 0
@@ -70,3 +76,25 @@ def test_long_output_file_name() -> None:
             tmp_file_path.write_text("content")
 
         assert output_file_path.read_text() == "content"
+
+
+def test_replace_retries_locked_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test if replacing waits for an output file locked by a reader, like on Windows."""
+    original_replace = Path.replace
+    failures = iter([True, True, False])
+
+    def locked_replace(self: Path, target: Path) -> Path:
+        if next(failures):
+            raise PermissionError
+        return original_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", locked_replace)
+
+    with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir_name:
+        output_file_path = Path(tmp_dir_name) / "result.txt"
+
+        with atomic_output_path(output_file_path) as tmp_file_path:
+            tmp_file_path.write_text("content")
+
+        assert output_file_path.read_text() == "content"
+        assert list(Path(tmp_dir_name).iterdir()) == [output_file_path]
