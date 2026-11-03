@@ -95,7 +95,7 @@ def sort_geoparquet_file_by_geometry(
     assert input_file_path.resolve().as_posix() != output_file_path.resolve().as_posix()
 
     if pq.read_metadata(input_file_path).num_rows == 0:
-        return input_file_path.rename(output_file_path)
+        return input_file_path.replace(output_file_path)
 
     Path(working_directory).mkdir(parents=True, exist_ok=True)
 

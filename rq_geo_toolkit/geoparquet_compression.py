@@ -19,6 +19,7 @@ from rq_geo_toolkit.duckdb import (
     set_up_duckdb_connection,
     sql_escape,
 )
+from rq_geo_toolkit.file_utils import atomic_output_path
 
 if TYPE_CHECKING:  # pragma: no cover
     from rq_geo_toolkit.rich_utils import VERBOSITY_MODE
@@ -74,7 +75,7 @@ def compress_parquet_with_duckdb(
     Path(working_directory).mkdir(parents=True, exist_ok=True)
 
     if is_single_path and pq.read_metadata(input_file_path).num_rows == 0:
-        return cast("Path", input_file_path).rename(output_file_path)
+        return cast("Path", input_file_path).replace(output_file_path)
 
     if is_single_path:
         sql_input_str = f"'{input_file_path}'"
@@ -143,7 +144,10 @@ def compress_query_with_duckdb(
         duckdb_conn_kwargs (Optional[DuckDBConnKwargs], optional): Additional kwargs used to
             provision a duckdb connection. Defaults to None.
     """
-    with tempfile.TemporaryDirectory(dir=Path(working_directory).resolve()) as tmp_dir_name:
+    with (
+        tempfile.TemporaryDirectory(dir=Path(working_directory).resolve()) as tmp_dir_name,
+        atomic_output_path(output_file_path) as tmp_output_file_path,
+    ):
         tmp_dir_path = Path(tmp_dir_name)
 
         original_metadata_string = _parquet_schema_metadata_to_duckdb_kv_metadata(parquet_metadata)
@@ -156,7 +160,7 @@ def compress_query_with_duckdb(
             function=_compress_with_memory_limit,
             kwargs=dict(
                 query=query,
-                output_file_path=output_file_path,
+                output_file_path=tmp_output_file_path,
                 original_metadata_string=original_metadata_string,
                 compression=compression,
                 compression_level=compression_level,

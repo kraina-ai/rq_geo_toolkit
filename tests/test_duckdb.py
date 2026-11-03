@@ -1,12 +1,17 @@
 """Test if provisioning duckdb connection works."""
 
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import duckdb
 import pytest
 
-from rq_geo_toolkit.duckdb import run_query_with_memory_monitoring, set_up_duckdb_connection
+from rq_geo_toolkit.duckdb import (
+    run_query_with_memory_monitoring,
+    set_up_duckdb_connection,
+    temporary_duckdb_connection,
+)
 from rq_geo_toolkit.geoparquet_sorting import sort_geoparquet_file_by_geometry
 from tests.conftest import load_biggest_overture_place_file_from_stac
 
@@ -33,6 +38,22 @@ def test_randomized_local_file_name() -> None:
         files_in_tmp_dir = list(Path(tmp_dir_name).glob("*.duckdb"))
         assert len(files_in_tmp_dir) == 1
         assert files_in_tmp_dir[0].stem != "db"
+
+
+def test_temporary_connection_in_threads() -> None:
+    """Test if temporary connections can be used concurrently from many threads."""
+
+    def get_threads(_: int) -> int:
+        for _ in range(200):
+            with temporary_duckdb_connection(tmp_dir_path=Path.cwd()) as connection:
+                result = connection.sql("SELECT current_setting('threads')").limit(1).fetchall()
+        return int(result[0][0])
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        results = list(executor.map(get_threads, range(4)))
+
+    assert len(set(results)) == 1
+    assert not list(Path.cwd().glob("tmp*/db.duckdb"))
 
 
 def test_query_provisioning() -> None:

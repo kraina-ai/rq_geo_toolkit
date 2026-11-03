@@ -84,6 +84,12 @@ no_implicit_optional = true
 check_untyped_defs = true
 warn_return_any = true
 
+[tool.licensecheck]
+using = "requirements"
+ignore_packages = [
+    'mypy-extensions', # uses MIT license, has mismatched license in analysis
+]
+
 [tool.docformatter]
 syntax = 'google'
 black = true

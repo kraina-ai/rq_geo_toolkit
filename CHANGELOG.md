@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `temporary_duckdb_connection` context manager for an isolated DuckDB connection backed by a temporary database file
+- `atomic_output_path` context manager for writing files atomically
+
+### Fixed
+
+- Replaced the global DuckDB connection with a temporary one to support running functions from multiple threads
+- Writing compressed and sorted parquet files atomically to support concurrent runs with the same output path
+
 ## [2026.10.1] - 2026-10-26
 
 ### Fixed
