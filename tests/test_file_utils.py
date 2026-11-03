@@ -32,7 +32,8 @@ def test_concurrent_writers_produce_complete_file() -> None:
             while not writing_finished.is_set():
                 try:
                     read_table = pq.read_table(output_file_path)
-                except FileNotFoundError:
+                # on Windows, the file can't be opened while it's being replaced
+                except (FileNotFoundError, PermissionError):
                     continue
                 assert read_table.equals(table)
                 complete_reads += 1
