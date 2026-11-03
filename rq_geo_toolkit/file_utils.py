@@ -23,9 +23,8 @@ def atomic_output_path(output_file_path: Union[str, Path]) -> Generator[Path, No
         Path: Temporary file path to write to. Removed if the write fails.
     """
     output_file_path = Path(output_file_path)
-    tmp_file_path = output_file_path.with_name(
-        f".{output_file_path.name}.{secrets.token_hex(8)}.tmp"
-    )
+    # fixed-length name, so long output file names don't exceed the filesystem limit
+    tmp_file_path = output_file_path.with_name(f".{secrets.token_hex(8)}.tmp")
     try:
         yield tmp_file_path
         tmp_file_path.replace(output_file_path)
