@@ -3,7 +3,9 @@
 import secrets
 import sys
 import tempfile
+from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from functools import partial
 from math import ceil
 from pathlib import Path
@@ -121,6 +123,30 @@ def set_up_duckdb_connection(
     return connection
 
 
+@contextmanager
+def temporary_duckdb_connection(
+    tmp_dir_path: Optional[Union[str, Path]] = None,
+) -> Generator["duckdb.DuckDBPyConnection", None, None]:
+    """
+    Open an isolated DuckDB connection backed by a temporary database file.
+
+    Use it instead of the global default connection (`duckdb.sql`), which isn't thread-safe,
+    when no other connection is available in the current scope.
+
+    Args:
+        tmp_dir_path (Optional[Union[str, Path]], optional): Directory where the temporary
+            database file will be created. Defaults to the system temporary directory.
+
+    Yields:
+        duckdb.DuckDBPyConnection: DuckDB connection object, closed on exit.
+    """
+    with (
+        tempfile.TemporaryDirectory(dir=tmp_dir_path) as tmp_dir_name,
+        duckdb.connect(str(Path(tmp_dir_name) / "db.duckdb")) as connection,
+    ):
+        yield connection
+
+
 def run_duckdb_query_function_with_memory_limit(
     tmp_dir_path: Path,
     function: Callable[..., None],
@@ -136,9 +162,10 @@ def run_duckdb_query_function_with_memory_limit(
     current_memory_gb_limit = float(
         current_memory_gb_limit or ceil(get_memory_status().total_bytes / MEMORY_1GB)
     )
-    threads_result = (
-        duckdb.sql("SELECT current_setting('threads') AS threads").limit(1).fetchall()[0]
-    )
+    with temporary_duckdb_connection(tmp_dir_path) as connection:
+        threads_result = (
+            connection.sql("SELECT current_setting('threads') AS threads").limit(1).fetchall()[0]
+        )
     if threads_result is None:
         raise RuntimeError("Failed to retrieve DuckDB threads setting.")
     current_threads_limit = current_threads_limit or threads_result[0]

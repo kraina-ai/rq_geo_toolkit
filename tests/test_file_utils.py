@@ -1,0 +1,43 @@
+"""Test atomic file writing."""
+
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pytest
+
+from rq_geo_toolkit.file_utils import atomic_output_path
+
+
+def test_concurrent_writers_produce_complete_file() -> None:
+    """Test if concurrent writers of the same output always leave a complete file."""
+    table = pa.table({"value": list(range(100_000))})
+
+    with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir_name:
+        output_file_path = Path(tmp_dir_name) / "result.parquet"
+
+        def write(_: int) -> None:
+            with atomic_output_path(output_file_path) as tmp_file_path:
+                pq.write_table(table, tmp_file_path)
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            list(executor.map(write, range(32)))
+
+        assert pq.read_table(output_file_path).equals(table)
+        assert list(Path(tmp_dir_name).iterdir()) == [output_file_path]
+
+
+def test_failed_write_leaves_no_files() -> None:
+    """Test if a failed write removes the temporary file and keeps the old output."""
+    with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir_name:
+        output_file_path = Path(tmp_dir_name) / "result.txt"
+        output_file_path.write_text("old")
+
+        with pytest.raises(ValueError), atomic_output_path(output_file_path) as tmp_file_path:
+            tmp_file_path.write_text("partial")
+            raise ValueError
+
+        assert output_file_path.read_text() == "old"
+        assert list(Path(tmp_dir_name).iterdir()) == [output_file_path]
