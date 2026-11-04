@@ -473,6 +473,10 @@ def test_warnings_use_display_only_during_operation(
         with ThreadPoolExecutor(max_workers=1) as executor:
             # a thread without the display isn't a part of this operation
             assert "file.py" in executor.submit(warnings.formatwarning, *arguments).result()
+            # neither is a thread started with a copied context
+            context = copy_context()
+            formatted = executor.submit(lambda: context.run(warnings.formatwarning, *arguments))
+            assert "file.py" in formatted.result()
         with pytest.warns(UserWarning, match="Caught"):
             warnings.warn("Caught", UserWarning, stacklevel=1)
 
