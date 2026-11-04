@@ -8,7 +8,7 @@ import threading
 import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 from unittest.mock import patch
 
 import pytest
@@ -156,6 +156,23 @@ def test_step_group_row_stays_until_next_major_step(console_output: Callable[[],
             assert rows == ["[2/2] Major"]
 
 
+@pytest.mark.parametrize("group_total", [None, 0])  # type: ignore
+def test_minor_step_without_known_total(
+    console_output: Callable[[], str], group_total: Optional[int]
+) -> None:
+    """Test if a minor step without a known total of minor steps uses the major total."""
+    with progress_display("verbose", total_steps=2) as display:
+        if group_total is None:
+            with display.spinner("Major", step="major"):
+                pass
+        else:
+            display.step_group("Major", total=group_total)
+        with display.spinner("Minor", step="minor"):
+            pass
+
+    assert "[1.1/2] Minor" in console_output()
+
+
 def test_nested_operation_joins_step_group(console_output: Callable[[], str]) -> None:
     """Test if steps and step groups of a nested operation extend the open step group."""
 
@@ -213,6 +230,7 @@ def test_nested_operation_steps(console_output: Callable[[], str]) -> None:
         "[1/5] Inner",
         "[2/5] Second",
         "[3/5] Outer",
+        "[4/5] Nested",
         "├── [1/2] Inner",
         "└── [2/2] Second",
         "[5/5] Last",
@@ -244,6 +262,7 @@ def test_add_steps_extends_total(console_output: Callable[[], str]) -> None:
     outer()
     assert _step_labels(console_output())[2:] == [
         "[1/2] Before",
+        "[2/2] Nested",
         "├── [1/2] First",
         "└── [2/2] Second",
     ]

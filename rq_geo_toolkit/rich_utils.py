@@ -586,12 +586,12 @@ class StepCounter:
 
     @property
     def current_step(self) -> str:
-        """Label of the current step, like `[2/16]` or `├── [1/7]`."""
-        if self.minor_step_number is None:
-            width = len(str(self.total_steps))
-            return f"{self.prefix}[{self.major_step_number: >{width}}/{self.total_steps}]"
-
+        """Label of the current step, like `[2/16]`, `├── [1/7]` or `[2.1/16]` without a group."""
         total = self.minor_steps_total
+        if self.minor_step_number is None or not total:
+            width = len(str(self.total_steps))
+            return f"{self.prefix}[{self.step_number: >{width}}/{self.total_steps}]"
+
         branches = _ASCII_TREE_BRANCHES if _get_console().options.ascii_only else _TREE_BRANCHES
         branch = branches[self.minor_step_number == total]
         return f"{self.prefix}{branch}[{self.minor_step_number: >{len(str(total))}}/{total}]"
@@ -646,14 +646,11 @@ class StepCounter:
 
     @contextmanager
     def _nested_operation(self, total_steps: int) -> Generator[None, None, None]:
-        # an operation started before the first step continues the numbering, a later one
-        # joins the current step group or takes the next major step, and its steps become
-        # minor steps of it
+        # an operation started before the first step continues the numbering, steps of a later
+        # one become minor steps of the current step group
         if self.is_new:
             yield
             return
-        if self.minor_steps_total is None:
-            self.next_step(minor_steps=0)
         self.add_minor_steps(total_steps)
         self._nesting_depth += 1
         try:
@@ -887,8 +884,9 @@ def progress_display(
         total_steps (Optional[int], optional): Number of major steps of the operation, which
             enables step numbers in `ProgressDisplay.spinner` and `ProgressDisplay.bar`.
             A nested operation started before the first step of the outer one continues its
-            numbering. A nested operation started later takes the next major step of the outer
-            operation and its steps are counted as minor steps. Defaults to None.
+            numbering. A nested operation started later joins the open step group or takes
+            the next major step of the outer operation, and its steps are counted as minor
+            steps. Defaults to None.
 
     Yields:
         ProgressDisplay: Progress display.
@@ -899,6 +897,8 @@ def progress_display(
         if total_steps is None:
             yield active_display
         elif active_display.steps is not None:
+            if not active_display.steps.is_new and active_display.steps.minor_steps_total is None:
+                active_display.step_group("Nested operation")
             with active_display.steps._nested_operation(total_steps):
                 yield active_display
         else:
