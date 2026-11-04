@@ -63,9 +63,9 @@ _SPINNER = "spinner"
 _BAR = "bar"
 _DOWNLOAD = "download"
 _GROUP = "group"
-# guides of `rich.tree.Tree`, the ASCII ones are for consoles that can't encode the box characters
-_TREE_BRANCHES = ("├── ", "└── ")
-_ASCII_TREE_BRANCHES = ("+-- ", "`-- ")
+# characters of `rich.tree.Tree` guides, ASCII ones are for consoles that can't encode them
+_TREE_BRANCHES = (" ├─ ", " └─ ")
+_ASCII_TREE_BRANCHES = (" +- ", " `- ")
 _REMOTE_UPDATE_INTERVAL_SECONDS = 0.2
 # ANSI colors follow the terminal theme, so they stay readable on light and dark backgrounds
 _LABEL_COLORS = (
@@ -78,6 +78,10 @@ _LABEL_COLORS = (
     "bright_green",
     "bright_magenta",
 )
+
+
+def _tree_branches() -> tuple[str, str]:
+    return _ASCII_TREE_BRANCHES if _get_console().options.ascii_only else _TREE_BRANCHES
 
 
 def _colored_label(label: str, number: int) -> str:
@@ -601,15 +605,14 @@ class StepCounter:
 
     @property
     def current_step(self) -> str:
-        """Label of the current step, like `[2/16]`, `├── [1/7]` or `[2.1/16]` without a group."""
+        """Label of the current step, like `[2/16]`, ` └─ [1/7]` or `[2.1/16]` without a group."""
         total = self.minor_steps_total
         if self.minor_step_number is None or not total:
             width = len(str(self.total_steps))
             return f"{self.prefix}[{self.step_number: >{width}}/{self.total_steps}]"
 
-        branches = _ASCII_TREE_BRANCHES if _get_console().options.ascii_only else _TREE_BRANCHES
-        branch = branches[self.minor_step_number == total]
-        return f"{self.prefix}{branch}[{self.minor_step_number: >{len(str(total))}}/{total}]"
+        width = len(str(total))
+        return f"{self.prefix}{_tree_branches()[1]}[{self.minor_step_number: >{width}}/{total}]"
 
     def add_steps(self, count: int) -> None:
         """
@@ -688,6 +691,7 @@ class ProgressDisplay:
         self._used = False
         self._listener: Optional[tuple[multiprocessing.Queue[Any], threading.Thread]] = None
         self._step_group_key: Optional[int] = None
+        self._minor_rows: dict[int, tuple[int, str]] = {}
         self.steps: Optional[StepCounter] = None
         self.pid = os.getpid()
 
@@ -708,9 +712,20 @@ class ProgressDisplay:
             if self.steps.minor_steps_total is None:
                 self._close_step_group()
         key = next(self._keys)
+        if step is not None and self.steps is not None and self.steps.minor_steps_total:
+            if self.steps.minor_step_number is not None:
+                self._minor_rows[key] = (self.steps.minor_step_number, description)
         self._group.add(key, description, total, kind)
         self._used = True
         return key
+
+    def _finish_task(self, key: int) -> None:
+        # the running step is shown as the last one, its final guide is known when it ends
+        number, description = self._minor_rows.pop(key, (None, None))
+        if description and self.steps and number != self.steps.minor_steps_total:
+            middle, last = _tree_branches()
+            self._group.update(key, description=description.replace(last, middle, 1))
+        self._group.finish(key)
 
     def _close_step_group(self) -> None:
         if self._step_group_key is not None:
@@ -756,7 +771,7 @@ class ProgressDisplay:
         try:
             yield
         finally:
-            self._group.finish(key)
+            self._finish_task(key)
 
     @contextmanager
     def bar(
@@ -783,7 +798,7 @@ class ProgressDisplay:
         try:
             yield ProgressTask(self._group, key)
         finally:
-            self._group.finish(key)
+            self._finish_task(key)
 
     def pooch_progressbar(self, description: str) -> PoochProgressBar:
         """

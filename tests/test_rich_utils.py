@@ -99,8 +99,11 @@ def test_decorator_reads_verbosity_mode_from_object(console_output: Callable[[],
 
 
 def _step_labels(output: str) -> list[str]:
-    labels = re.findall(r"((?:[├└]── )?\[\s*\d+/\d+\] \w+)", output)
-    return list(dict.fromkeys(re.sub(r"\s+", " ", label) for label in labels))
+    labels = re.findall(r"((?: [├└]─ )?\[\s*\d+/\d+\] \w+)", output)
+    unique_labels = list(dict.fromkeys(re.sub(r"\s+", " ", label) for label in labels))
+    # live frames show a running step as the last one, even when it ends as a middle one
+    return [label for label in unique_labels if label.replace("└", "├") == label
+            or label.replace("└", "├") not in unique_labels]
 
 
 def test_steps_numbering(console_output: Callable[[], str]) -> None:
@@ -120,10 +123,23 @@ def test_steps_numbering(console_output: Callable[[], str]) -> None:
     assert _step_labels(console_output()) == [
         "[1/3] First",
         "[2/3] Group",
-        "├── [1/2] Second",
-        "└── [2/2] Third",
+        " ├─ [1/2] Second",
+        " └─ [2/2] Third",
     ]
     assert re.search(r"\s{2}Unnumbered", console_output())
+
+
+def test_running_step_is_shown_as_the_last_one(console_output: Callable[[], str]) -> None:
+    """Test if a step is shown as the last one until it ends with its final guide."""
+    with progress_display("verbose", total_steps=1) as display:
+        display.step_group("Group", total=2)
+        with display.spinner("First", step="minor"):
+            assert rich_utils._SHARED_LIVE
+            assert rich_utils._SHARED_LIVE.progress.tasks[-1].description == " └─ [1/2] First"
+        with display.spinner("Second", step="minor"):
+            pass
+
+    assert _step_labels(console_output())[-2:] == [" ├─ [1/2] First", " └─ [2/2] Second"]
 
 
 def test_step_group_without_steps_is_ignored(console_output: Callable[[], str]) -> None:
@@ -203,8 +219,8 @@ def test_steps_use_ascii_in_console_without_unicode(monkeypatch: pytest.MonkeyPa
 
     file.flush()
     output = file.buffer.getvalue()
-    assert b"+-- [1/2] First" in output
-    assert b"`-- [2/2] Second" in output
+    assert b" +- [1/2] First" in output
+    assert b" `- [2/2] Second" in output
 
 
 def test_step_group_row_stays_until_next_major_step(console_output: Callable[[], str]) -> None:
@@ -214,7 +230,7 @@ def test_step_group_row_stays_until_next_major_step(console_output: Callable[[],
         with display.spinner("Minor", step="minor"):
             assert rich_utils._SHARED_LIVE
             rows = [task.description for task in rich_utils._SHARED_LIVE.progress.tasks]
-            assert rows == ["[1/2] Group", "└── [1/1] Minor"]
+            assert rows == ["[1/2] Group", " └─ [1/1] Minor"]
         with display.spinner("Major", step="major"):
             rows = [task.description for task in rich_utils._SHARED_LIVE.progress.tasks]
             assert rows == ["[2/2] Major"]
@@ -260,9 +276,9 @@ def test_nested_operation_joins_step_group(console_output: Callable[[], str]) ->
     assert _step_labels(console_output()) == [
         "[1/2] Before",
         "[2/2] Group",
-        "├── [1/3] First",
-        "├── [2/3] Second",
-        "└── [3/3] Third",
+        " ├─ [1/3] First",
+        " ├─ [2/3] Second",
+        " └─ [3/3] Third",
     ]
 
 
@@ -295,8 +311,8 @@ def test_nested_operation_steps(console_output: Callable[[], str]) -> None:
         "[2/5] Second",
         "[3/5] Outer",
         "[4/5] Nested",
-        "├── [1/2] Inner",
-        "└── [2/2] Second",
+        " ├─ [1/2] Inner",
+        " └─ [2/2] Second",
         "[5/5] Last",
     ]
 
@@ -327,8 +343,8 @@ def test_add_steps_extends_total(console_output: Callable[[], str]) -> None:
     assert _step_labels(console_output())[2:] == [
         "[1/2] Before",
         "[2/2] Nested",
-        "├── [1/2] First",
-        "└── [2/2] Second",
+        " ├─ [1/2] First",
+        " └─ [2/2] Second",
     ]
 
 
