@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Warnings are printed through the progress display while it's open, with operation labels and without the source location
 - `ProgressDisplay.pooch_progressbar` for showing `pooch` downloads with a file name and a correct final transfer speed
 
+### Changed
+
+- Raised the minimal `rich` version to 12.3.0, required by steps without a total
+
 ### Fixed
 
 - Threads started with a copied context open their own progress display instead of reusing the parent's one
