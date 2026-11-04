@@ -99,7 +99,7 @@ def test_decorator_reads_verbosity_mode_from_object(console_output: Callable[[],
 
 
 def _step_labels(output: str) -> list[str]:
-    labels = re.findall(r"(\[\s*[\d.]+/\d+\] \w+)", output)
+    labels = re.findall(r"((?:[├└]── )?\[\s*\d+/\d+\] \w+)", output)
     return list(dict.fromkeys(re.sub(r"\s+", " ", label) for label in labels))
 
 
@@ -108,15 +108,81 @@ def test_steps_numbering(console_output: Callable[[], str]) -> None:
     with progress_display("verbose", total_steps=3) as display:
         with display.spinner("First", step="major"):
             pass
-        with display.bar("Second", total=1, step="major", with_minor_step=True) as task:
+        display.step_group("Group", total=2)
+        with display.bar("Second", total=1, step="minor") as task:
             task.update(1)
+        assert display.steps and display.steps.step_number == "2.1"
         with display.spinner("Third", step="minor"):
             pass
         with display.spinner("Unnumbered"):
             pass
 
-    assert _step_labels(console_output()) == ["[ 1/3] First", "[ 2.1/3] Second", "[ 2.2/3] Third"]
+    assert _step_labels(console_output()) == [
+        "[1/3] First",
+        "[2/3] Group",
+        "├── [1/2] Second",
+        "└── [2/2] Third",
+    ]
     assert re.search(r"\s{2}Unnumbered", console_output())
+
+
+def test_steps_use_ascii_in_console_without_unicode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test if a console that can't encode box characters gets ASCII labels."""
+    file = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+    console = Console(file=file, width=100)
+    monkeypatch.setattr(rich_utils, "_get_console", lambda: console)
+    with progress_display("verbose", total_steps=1) as display:
+        display.step_group("Group", total=2)
+        for name in ("First", "Second"):
+            with display.spinner(name, step="minor"):
+                pass
+
+    file.flush()
+    output = file.buffer.getvalue()
+    assert b"+-- [1/2] First" in output
+    assert b"`-- [2/2] Second" in output
+
+
+def test_step_group_row_stays_until_next_major_step(console_output: Callable[[], str]) -> None:
+    """Test if a transient step group is shown above its minor steps until the next major step."""
+    with progress_display("transient", total_steps=2) as display:
+        display.step_group("Group", total=1)
+        with display.spinner("Minor", step="minor"):
+            assert rich_utils._SHARED_LIVE
+            rows = [task.description for task in rich_utils._SHARED_LIVE.progress.tasks]
+            assert rows == ["[1/2] Group", "└── [1/1] Minor"]
+        with display.spinner("Major", step="major"):
+            rows = [task.description for task in rich_utils._SHARED_LIVE.progress.tasks]
+            assert rows == ["[2/2] Major"]
+
+
+def test_nested_operation_joins_step_group(console_output: Callable[[], str]) -> None:
+    """Test if steps and step groups of a nested operation extend the open step group."""
+
+    @with_progress_display(total_steps=2)
+    def nested(verbosity_mode: VERBOSITY_MODE = "verbose") -> None:
+        with progress_display() as display:
+            display.step_group("Skipped", total=2)
+            with display.spinner("First", step="minor"):
+                pass
+            with display.spinner("Second", step="minor"):
+                pass
+            with display.spinner("Third", step="major"):
+                pass
+
+    with progress_display("verbose", total_steps=2) as display:
+        with display.spinner("Before", step="major"):
+            pass
+        display.step_group("Group")
+        nested()
+
+    assert _step_labels(console_output()) == [
+        "[1/2] Before",
+        "[2/2] Group",
+        "├── [1/3] First",
+        "├── [2/3] Second",
+        "└── [3/3] Third",
+    ]
 
 
 @with_progress_display(total_steps=2)
@@ -144,12 +210,12 @@ def test_nested_operation_steps(console_output: Callable[[], str]) -> None:
     _outer_operation("verbose", inner_first=True)
 
     assert _step_labels(console_output()) == [
-        "[ 1/5] Inner",
-        "[ 2/5] Second",
-        "[ 3/5] Outer",
-        "[ 4.1/5] Inner",
-        "[ 4.2/5] Second",
-        "[ 5/5] Last",
+        "[1/5] Inner",
+        "[2/5] Second",
+        "[3/5] Outer",
+        "├── [1/2] Inner",
+        "└── [2/2] Second",
+        "[5/5] Last",
     ]
 
 
@@ -165,9 +231,9 @@ def _dynamic_operation(verbosity_mode: VERBOSITY_MODE = "verbose") -> None:
 
 
 def test_add_steps_extends_total(console_output: Callable[[], str]) -> None:
-    """Test if the total grows in an outermost operation and not in a nested one."""
+    """Test if an outermost operation extends major steps and a nested one minor steps."""
     _dynamic_operation()
-    assert _step_labels(console_output()) == ["[ 1/2] First", "[ 2/2] Second"]
+    assert _step_labels(console_output()) == ["[1/2] First", "[2/2] Second"]
 
     @with_progress_display(total_steps=2)
     def outer(verbosity_mode: VERBOSITY_MODE = "verbose") -> None:
@@ -177,9 +243,9 @@ def test_add_steps_extends_total(console_output: Callable[[], str]) -> None:
 
     outer()
     assert _step_labels(console_output())[2:] == [
-        "[ 1/2] Before",
-        "[ 2.1/2] First",
-        "[ 2.2/2] Second",
+        "[1/2] Before",
+        "├── [1/2] First",
+        "└── [2/2] Second",
     ]
 
 
