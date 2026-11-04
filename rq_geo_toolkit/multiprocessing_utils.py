@@ -1,6 +1,7 @@
 """Utilities for multiprocessing."""
 
 import multiprocessing
+import signal
 import sys
 import traceback
 from time import sleep
@@ -39,8 +40,8 @@ class WorkerProcess(multiprocessing.Process):
 def raise_for_exit_code(process: multiprocessing.Process) -> None:
     """Raise an error if a finished process failed without reporting an exception."""
     if process.exitcode:
-        # a signal means a kill by the system, e.g. OOM killer; Windows exit codes don't show that
-        if process.exitcode < 0 or sys.platform == "win32":
+        # the OOM killer sends SIGKILL; Windows exit codes don't show the cause
+        if sys.platform == "win32" or process.exitcode == -signal.SIGKILL:
             raise MemoryError()
         raise RuntimeError(f"Process failed with exit code {process.exitcode}.")
 

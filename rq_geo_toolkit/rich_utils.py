@@ -253,6 +253,8 @@ class _LocalGroup(_SilentGroup):
 
     def close(self) -> None:
         global _SHARED_LIVE  # noqa: PLW0603
+        for key in list(self.task_ids):
+            self.finish(key)
         with _SHARED_LIVE_LOCK:
             self.shared_live.open_groups -= 1
             if self.shared_live.open_groups == 0:
@@ -331,15 +333,14 @@ class _RemoteGroup(_SilentGroup):
         description: Optional[str] = None,
     ) -> None:
         if advance is not None:
-            completed = self.completed[key] + advance
+            self.completed[key] += advance
         if completed is not None:
             self.completed[key] = completed
 
         # throttle frequent updates, but always send changes of total and description
         now = time.monotonic()
         if (
-            total is None
-            and description is None
+            total is None is description
             and now - self.sent_at.get(key, 0) < _REMOTE_UPDATE_INTERVAL_SECONDS
         ):
             return
@@ -371,7 +372,7 @@ def _open_local_group(verbosity_mode: VERBOSITY_MODE) -> _SilentGroup:
                 shared_live.progress.start()
             except LiveError:
                 # another live display (outside of this module) is already active
-                return _SilentGroup()
+                return _PlainGroup(verbosity_mode)
             _SHARED_LIVE = shared_live
 
         _SHARED_LIVE.open_groups += 1
@@ -405,6 +406,10 @@ def _listen_to_children(queue: "multiprocessing.Queue[Any]") -> None:
             groups.pop(group_id).close()
         else:
             getattr(groups[group_id], method)(*args)
+
+    # a crashed child process doesn't close its group
+    for group in groups.values():
+        group.close()
 
 
 class ProgressTask:
@@ -730,7 +735,9 @@ class ProgressDisplay:
         Pass it as the `initializer` of a `ProcessPoolExecutor` or a `multiprocessing.Pool`,
         or call it at the start of a `multiprocessing.Process` target. Progress of operations
         running in attached child processes is shown as separate groups in this display.
-        Child processes that aren't attached stay silent.
+        Child processes that aren't attached print plain lines prefixed with `pid N:`,
+        unless they run in the silent verbosity mode. A pool must not outlive this display,
+        because its workers stay attached to it.
 
         Returns:
             Callable[[], None]: Picklable initializer.
@@ -763,7 +770,9 @@ def _format_warning(
 ) -> str:
     text = f"{category.__name__}: {message}"
     display = _ACTIVE_DISPLAY.get()
-    if display is None or display.is_silent or display.pid != os.getpid():
+    if display is None:
+        return _ORIGINAL_FORMATWARNING(message, category, filename, lineno, line)
+    if display.is_silent or display.pid != os.getpid():
         return f"{text}\n"
     display.print(f"[yellow]{category.__name__}:[/] {escape(str(message))}")
     return ""

@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Replaced the global DuckDB connection with a temporary one to support running functions from multiple threads
 - Writing compressed and sorted parquet files atomically to support concurrent runs with the same output path
-- Crashed worker processes are no longer reported as `MemoryError` and retried with lower limits, unless they were killed by the system
+- Crashed worker processes are no longer reported as `MemoryError` and retried with lower limits on Linux and macOS, unless they were killed with `SIGKILL`. On Windows, any crashed worker process is still reported as `MemoryError`
 
 ## [2026.10.1] - 2026-10-26
 

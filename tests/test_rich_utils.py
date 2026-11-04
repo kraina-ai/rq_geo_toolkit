@@ -7,8 +7,8 @@ import sys
 import threading
 import time
 import warnings
-from concurrent.futures import ProcessPoolExecutor
-from typing import Callable
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from typing import Any, Callable
 
 import pytest
 from rich.console import Console
@@ -126,7 +126,7 @@ def _inner_operation(verbosity_mode: VERBOSITY_MODE = "verbose") -> None:
                 pass
 
 
-@with_progress_display(total_steps=3)
+@with_progress_display(total_steps=5)
 def _outer_operation(verbosity_mode: VERBOSITY_MODE, inner_first: bool) -> None:
     with progress_display() as display:
         if inner_first:
@@ -143,12 +143,12 @@ def test_nested_operation_steps(console_output: Callable[[], str]) -> None:
     _outer_operation("verbose", inner_first=True)
 
     assert _step_labels(console_output()) == [
-        "[ 1/3] Inner",
-        "[ 2/3] Second",
-        "[ 3/3] Outer",
-        "[ 4.1/3] Inner",
-        "[ 4.2/3] Second",
-        "[ 5/3] Last",
+        "[ 1/5] Inner",
+        "[ 2/5] Second",
+        "[ 3/5] Outer",
+        "[ 4.1/5] Inner",
+        "[ 4.2/5] Second",
+        "[ 5/5] Last",
     ]
 
 
@@ -187,7 +187,7 @@ def test_steps_without_total_are_not_numbered(console_output: Callable[[], str])
     with progress_display("verbose") as display, display.spinner("Plain", step="major"):
         pass
 
-    assert _step_labels(console_output()) == []
+    assert not _step_labels(console_output())
     assert display.steps is None
 
 
@@ -247,18 +247,51 @@ def test_operation_without_output_takes_no_number(console_output: Callable[[], s
     assert re.search(r"#1\s+Visible operation", console_output())
 
 
-def test_warnings_use_display_only_during_operation(console_output: Callable[[], str]) -> None:
+def test_crashed_child_process_does_not_keep_display_open(
+    console_output: Callable[[], str],
+) -> None:
+    """Test if a group of a child process that never closed it is closed with the listener."""
+    queue: multiprocessing.Queue[Any] = multiprocessing.get_context("spawn").Queue()
+    for message in (
+        ("group", "open", ("verbose",)),
+        ("group", "add", (1, "Crashed step", None, rich_utils._SPINNER)),
+        None,
+    ):
+        queue.put(message)
+
+    rich_utils._listen_to_children(queue)
+
+    assert "Crashed step" in console_output()
+    assert rich_utils._SHARED_LIVE is None
+
+
+def test_warnings_use_display_only_during_operation(
+    console_output: Callable[[], str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test if the display prints warnings during an operation and they can still be caught."""
     arguments = ("Message [x]", UserWarning, "file.py", 1)
+    # pytest records warnings, so restore the path of a warning printed to the console
+    monkeypatch.setattr(
+        warnings,
+        "showwarning",
+        lambda message, category, filename, lineno, file=None, line=None: warnings.formatwarning(
+            message, category, filename, lineno, line
+        ),
+    )
     with progress_display("silent"):
         assert warnings.formatwarning(*arguments) == "UserWarning: Message [x]\n"
 
     with progress_display("transient"):
         assert warnings.formatwarning(*arguments) == ""
+        warnings.warn("Uncaptured", UserWarning, stacklevel=1)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            # a thread without the display isn't a part of this operation
+            assert "file.py" in executor.submit(warnings.formatwarning, *arguments).result()
         with pytest.warns(UserWarning, match="Caught"):
             warnings.warn("Caught", UserWarning, stacklevel=1)
 
     assert "UserWarning: Message [x]" in console_output()
+    assert "UserWarning: Uncaptured" in console_output()
     assert "Caught" not in console_output()
     assert "file.py" in warnings.formatwarning(*arguments)
 
@@ -349,5 +382,5 @@ def test_child_processes_without_initializer_print_plain_lines(
     ) as executor:
         executor.submit(_run_operation_in_mode, mode).result()
 
-    assert re.fullmatch(expected_output, capfd.readouterr().out)
+    assert re.fullmatch(expected_output, capfd.readouterr().out.replace("\r\n", "\n"))
     assert console_output() == ""
