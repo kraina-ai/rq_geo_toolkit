@@ -253,8 +253,9 @@ class _LocalGroup(_SilentGroup):
 
     def close(self) -> None:
         global _SHARED_LIVE  # noqa: PLW0603
-        for key in list(self.task_ids):
-            self.finish(key)
+        # only rows of a crashed child process are left here, and they didn't finish
+        for task_id in self.task_ids.values():
+            self.progress.remove_task(task_id)
         with _SHARED_LIVE_LOCK:
             self.shared_live.open_groups -= 1
             if self.shared_live.open_groups == 0:
@@ -399,17 +400,18 @@ def _attach_to_parent(queue: Optional["multiprocessing.Queue[Any]"]) -> None:
 
 def _listen_to_children(queue: "multiprocessing.Queue[Any]") -> None:
     groups: dict[str, _SilentGroup] = {}
-    for group_id, method, args in iter(queue.get, None):
-        if method == "open":
-            groups[group_id] = _open_group(*args)
-        elif method == "close":
-            groups.pop(group_id).close()
-        else:
-            getattr(groups[group_id], method)(*args)
-
-    # a crashed child process doesn't close its group
-    for group in groups.values():
-        group.close()
+    try:
+        for group_id, method, args in iter(queue.get, None):
+            if method == "open":
+                groups[group_id] = _open_group(*args)
+            elif method == "close":
+                groups.pop(group_id).close()
+            else:
+                getattr(groups[group_id], method)(*args)
+    finally:
+        # a crashed child process doesn't close its group
+        for group in groups.values():
+            group.close()
 
 
 class ProgressTask:
@@ -770,9 +772,9 @@ def _format_warning(
 ) -> str:
     text = f"{category.__name__}: {message}"
     display = _ACTIVE_DISPLAY.get()
-    if display is None:
+    if display is None or display.pid != os.getpid():
         return _ORIGINAL_FORMATWARNING(message, category, filename, lineno, line)
-    if display.is_silent or display.pid != os.getpid():
+    if display.is_silent:
         return f"{text}\n"
     display.print(f"[yellow]{category.__name__}:[/] {escape(str(message))}")
     return ""

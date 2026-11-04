@@ -9,6 +9,7 @@ import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Any, Callable
+from unittest.mock import patch
 
 import pytest
 from rich.console import Console
@@ -247,21 +248,29 @@ def test_operation_without_output_takes_no_number(console_output: Callable[[], s
     assert re.search(r"#1\s+Visible operation", console_output())
 
 
+def _queue_with_open_row(*messages: Any) -> "multiprocessing.Queue[Any]":
+    queue: multiprocessing.Queue[Any] = multiprocessing.get_context("spawn").Queue()
+    queue.put(("group", "open", ("verbose",)))
+    queue.put(("group", "add", (1, "Crashed step", None, rich_utils._SPINNER)))
+    for message in messages:
+        queue.put(message)
+    return queue
+
+
 def test_crashed_child_process_does_not_keep_display_open(
     console_output: Callable[[], str],
 ) -> None:
     """Test if a group of a child process that never closed it is closed with the listener."""
-    queue: multiprocessing.Queue[Any] = multiprocessing.get_context("spawn").Queue()
-    for message in (
-        ("group", "open", ("verbose",)),
-        ("group", "add", (1, "Crashed step", None, rich_utils._SPINNER)),
-        None,
-    ):
-        queue.put(message)
+    with patch.object(rich_utils._LocalGroup, "finish") as finish:
+        rich_utils._listen_to_children(_queue_with_open_row(None))
+    finish.assert_not_called()
+    assert rich_utils._SHARED_LIVE is None
 
-    rich_utils._listen_to_children(queue)
 
-    assert "Crashed step" in console_output()
+def test_failed_listener_does_not_keep_display_open(console_output: Callable[[], str]) -> None:
+    """Test if groups are closed when a message from a child process can't be handled."""
+    with pytest.raises(KeyError):
+        rich_utils._listen_to_children(_queue_with_open_row(("group", "update", (2,))))
     assert rich_utils._SHARED_LIVE is None
 
 
@@ -289,6 +298,10 @@ def test_warnings_use_display_only_during_operation(
             assert "file.py" in executor.submit(warnings.formatwarning, *arguments).result()
         with pytest.warns(UserWarning, match="Caught"):
             warnings.warn("Caught", UserWarning, stacklevel=1)
+
+    with progress_display("transient") as display:
+        display.pid = -1  # like a display inherited through fork
+        assert "file.py" in warnings.formatwarning(*arguments)
 
     assert "UserWarning: Message [x]" in console_output()
     assert "UserWarning: Uncaptured" in console_output()
