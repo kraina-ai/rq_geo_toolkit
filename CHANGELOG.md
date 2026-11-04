@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.11.0] - 2026-11-04
+
 ### Added
 
 - `temporary_duckdb_connection` context manager for an isolated DuckDB connection backed by a temporary database file
@@ -17,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Labels of concurrent operations and child processes have different colors
 - Warnings are printed through the progress display while it's open, with operation labels and without the source location
 - `ProgressDisplay.pooch_progressbar` for showing `pooch` downloads with a file name and a correct final transfer speed
+
+### Changed
+
+- Raised the minimal `rich` version to 12.3.0, required by steps without a total
 
 ### Fixed
 
@@ -193,7 +199,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Georelated constants
 - DuckDB initialization function
 
-[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.10.1...HEAD
+[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.11.0...HEAD
+[2026.11.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.10.1...2026.11.0
 [2026.10.1]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.10.0...2026.10.1
 [2026.10.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.9.0...2026.10.0
 [2026.9.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.6.0...2026.9.0

@@ -5,7 +5,7 @@
 groups = ["default", "dev", "license", "lint", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:f7100b7aefc1c8d99ec24841c45bd64ab8f039307ebc36955418de8c488d7ec0"
+content_hash = "sha256:d6e9986c9a59c85785ee3de1e1709b041b9dc2e19dda016500d46ee85231630c"
 
 [[metadata.targets]]
 requires_python = ">=3.10"
@@ -365,7 +365,7 @@ name = "contourpy"
 version = "1.3.2"
 requires_python = ">=3.10"
 summary = "Python library for calculating contours of 2D quadrilateral grids"
-groups = ["dev"]
+groups = ["dev", "test"]
 dependencies = [
     "numpy>=1.23",
 ]
@@ -434,7 +434,7 @@ name = "cycler"
 version = "0.12.1"
 requires_python = ">=3.8"
 summary = "Composable style cycles"
-groups = ["dev"]
+groups = ["dev", "test"]
 files = [
     {file = "cycler-0.12.1-py3-none-any.whl", hash = "sha256:85cef7cff222d8644161529808465972e51340599459b8ac3ccbac5a854e0d30"},
     {file = "cycler-0.12.1.tar.gz", hash = "sha256:88bb128f02ba341da8ef447245a9e138fae777f6a23943da4540077d3601eb1c"},
@@ -624,7 +624,7 @@ name = "fonttools"
 version = "4.61.1"
 requires_python = ">=3.10"
 summary = "Tools to manipulate font files"
-groups = ["dev"]
+groups = ["dev", "test"]
 files = [
     {file = "fonttools-4.61.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:7c7db70d57e5e1089a274cbb2b1fd635c9a24de809a231b154965d415d6c6d24"},
     {file = "fonttools-4.61.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:5fe9fd43882620017add5eabb781ebfbc6998ee49b35bd7f8f79af1f9f99a958"},
@@ -886,7 +886,7 @@ name = "kiwisolver"
 version = "1.4.9"
 requires_python = ">=3.10"
 summary = "A fast implementation of the Cassowary constraint solver"
-groups = ["dev"]
+groups = ["dev", "test"]
 files = [
     {file = "kiwisolver-1.4.9-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:b4b4d74bda2b8ebf4da5bd42af11d02d04428b2c32846e4c2c93219df8a7987b"},
     {file = "kiwisolver-1.4.9-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:fb3b8132019ea572f4611d770991000d7f58127560c4889729248eb5852a102f"},
@@ -1166,7 +1166,7 @@ name = "matplotlib"
 version = "3.10.8"
 requires_python = ">=3.10"
 summary = "Python plotting package"
-groups = ["dev"]
+groups = ["dev", "test"]
 dependencies = [
     "contourpy>=1.0.1",
     "cycler>=0.10",
@@ -1570,7 +1570,7 @@ name = "pillow"
 version = "12.1.0"
 requires_python = ">=3.10"
 summary = "Python Imaging Library (fork)"
-groups = ["dev"]
+groups = ["dev", "test"]
 files = [
     {file = "pillow-12.1.0-cp310-cp310-macosx_10_10_x86_64.whl", hash = "sha256:fb125d860738a09d363a88daa0f59c4533529a90e564785e20fe875b200b6dbd"},
     {file = "pillow-12.1.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:cad302dc10fac357d3467a74a9561c90609768a6f73a1923b0fd851b6486f8b0"},
@@ -1933,7 +1933,7 @@ name = "pyparsing"
 version = "3.3.2"
 requires_python = ">=3.9"
 summary = "pyparsing - Classes and methods to define and execute parsing grammars"
-groups = ["dev"]
+groups = ["dev", "test"]
 files = [
     {file = "pyparsing-3.3.2-py3-none-any.whl", hash = "sha256:850ba148bd908d7e2411587e247a1e4f0327839c40e2e5e6d05a007ecc69911d"},
     {file = "pyparsing-3.3.2.tar.gz", hash = "sha256:c777f4d763f140633dcb6d8a3eda953bf7a214dc4eff598413c070bcdc117cbc"},
@@ -2353,7 +2353,7 @@ name = "setuptools"
 version = "80.10.2"
 requires_python = ">=3.9"
 summary = "Easily download, build, install, upgrade, and uninstall Python packages"
-groups = ["dev"]
+groups = ["dev", "test"]
 files = [
     {file = "setuptools-80.10.2-py3-none-any.whl", hash = "sha256:95b30ddfb717250edb492926c92b5221f7ef3fbcc2b07579bcd4a27da21d0173"},
     {file = "setuptools-80.10.2.tar.gz", hash = "sha256:8b0e9d10c784bf7d262c4e5ec5d4ec94127ce206e8738f29a437945fbc219b70"},
