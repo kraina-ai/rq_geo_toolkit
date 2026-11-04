@@ -126,6 +126,25 @@ def test_steps_numbering(console_output: Callable[[], str]) -> None:
     assert re.search(r"\s{2}Unnumbered", console_output())
 
 
+def test_operation_labels_have_different_colors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test if labels of concurrent operations can be told apart by color."""
+    file = io.StringIO()
+    console = Console(file=file, force_terminal=True, color_system="standard", width=100)
+    monkeypatch.setattr(rich_utils, "_get_console", lambda: console)
+
+    def second() -> None:
+        with progress_display("verbose") as display, display.spinner("Second"):
+            pass
+
+    with progress_display("verbose") as display, display.spinner("First"):
+        thread = threading.Thread(target=second)
+        thread.start()
+        thread.join()
+
+    assert "\x1b[36m#1\x1b[0m" in file.getvalue()
+    assert "\x1b[35m#2\x1b[0m" in file.getvalue()
+
+
 def test_steps_use_ascii_in_console_without_unicode(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test if a console that can't encode box characters gets ASCII labels."""
     file = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")

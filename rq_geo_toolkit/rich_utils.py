@@ -67,6 +67,21 @@ _GROUP = "group"
 _TREE_BRANCHES = ("├── ", "└── ")
 _ASCII_TREE_BRANCHES = ("+-- ", "`-- ")
 _REMOTE_UPDATE_INTERVAL_SECONDS = 0.2
+# ANSI colors follow the terminal theme, so they stay readable on light and dark backgrounds
+_LABEL_COLORS = (
+    "cyan",
+    "magenta",
+    "green",
+    "yellow",
+    "bright_blue",
+    "bright_red",
+    "bright_green",
+    "bright_magenta",
+)
+
+
+def _colored_label(label: str, number: int) -> str:
+    return f"[{_LABEL_COLORS[number % len(_LABEL_COLORS)]}]{label}[/]"
 
 
 class _SpeedColumn(ProgressColumn):  # type: ignore[misc]
@@ -103,7 +118,7 @@ class _DescriptionColumn(ProgressColumn):  # type: ignore[misc]
         description = Text.from_markup(task.description, style="progress.description")
         if not self.shared_live.show_labels:
             return description
-        return Text.assemble((task.fields["label"], "progress.data.speed"), " ", description)
+        return Text.assemble(Text.from_markup(task.fields["label"]), " ", description)
 
 
 class _GroupedProgress(Progress):  # type: ignore[misc]
@@ -213,7 +228,7 @@ class _LocalGroup(_SilentGroup):
 
     @property
     def label(self) -> str:
-        return f"#{self.index}"
+        return _colored_label(f"#{self.index}", self.index - 1)
 
     def add(self, key: int, description: str, total: Optional[float], kind: str) -> None:
         if kind == _GROUP and not self.verbose:
@@ -259,7 +274,7 @@ class _LocalGroup(_SilentGroup):
 
     def print(self, text: str) -> None:
         if self.shared_live.show_labels:
-            text = f"[progress.data.speed]{self.label}[/] {text}"
+            text = f"{self.label} {text}"
         self.progress.console.print(text)
 
     def print_task(self, key: int) -> None:
@@ -289,7 +304,7 @@ class _PlainGroup(_SilentGroup):
 
     def __init__(self, verbosity_mode: VERBOSITY_MODE) -> None:
         self.console = _get_console()
-        self.label = f"pid {os.getpid()}:"
+        self.label = _colored_label(f"pid {os.getpid()}:", os.getpid())
         self.verbose = verbosity_mode == "verbose"
         self.rows: dict[int, tuple[str, float]] = {}
 
@@ -317,7 +332,7 @@ class _PlainGroup(_SilentGroup):
 
     def print(self, text: str) -> None:
         # single lines, so processes writing to the same console don't overwrite each other
-        self.console.print(f"[progress.data.speed]{self.label}[/] {text}")
+        self.console.print(f"{self.label} {text}")
 
     def print_task(self, key: int) -> None:
         description, start_time = self.rows[key]

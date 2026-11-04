@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `progress_display` context manager and `with_progress_display` decorator for showing the progress of a whole operation in a single live display, including operations from multiple threads and attached child processes
 - `StepCounter` with numbered major and minor steps, enabled with `with_progress_display(total_steps=...)`; nested operations continue the numbering of the outer one
 - `ProgressDisplay.step_group` for showing minor steps with their own counter under a major step
+- Labels of concurrent operations and child processes have different colors
 - Warnings are printed through the progress display while it's open, with operation labels and without the source location
 - `ProgressDisplay.pooch_progressbar` for showing `pooch` downloads with a file name and a correct final transfer speed
 
