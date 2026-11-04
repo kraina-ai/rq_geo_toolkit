@@ -8,7 +8,7 @@ import threading
 import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 from unittest.mock import patch
 
 import pytest
@@ -99,8 +99,11 @@ def test_decorator_reads_verbosity_mode_from_object(console_output: Callable[[],
 
 
 def _step_labels(output: str) -> list[str]:
-    labels = re.findall(r"(\[\s*[\d.]+/\d+\] \w+)", output)
-    return list(dict.fromkeys(re.sub(r"\s+", " ", label) for label in labels))
+    labels = re.findall(r"((?: [├└]─ )?\[\s*\d+/\d+\] \w+)", output)
+    unique_labels = list(dict.fromkeys(re.sub(r"\s+", " ", label) for label in labels))
+    # live frames show a running step as the last one, even when it ends as a middle one
+    return [label for label in unique_labels if label.replace("└", "├") == label
+            or label.replace("└", "├") not in unique_labels]
 
 
 def test_steps_numbering(console_output: Callable[[], str]) -> None:
@@ -108,15 +111,175 @@ def test_steps_numbering(console_output: Callable[[], str]) -> None:
     with progress_display("verbose", total_steps=3) as display:
         with display.spinner("First", step="major"):
             pass
-        with display.bar("Second", total=1, step="major", with_minor_step=True) as task:
+        display.step_group("Group", total=2)
+        with display.bar("Second", total=1, step="minor") as task:
             task.update(1)
+        assert display.steps and display.steps.step_number == "2.1"
         with display.spinner("Third", step="minor"):
             pass
         with display.spinner("Unnumbered"):
             pass
 
-    assert _step_labels(console_output()) == ["[ 1/3] First", "[ 2.1/3] Second", "[ 2.2/3] Third"]
+    assert _step_labels(console_output()) == [
+        "[1/3] First",
+        "[2/3] Group",
+        " ├─ [1/2] Second",
+        " └─ [2/2] Third",
+    ]
     assert re.search(r"\s{2}Unnumbered", console_output())
+
+
+def test_running_step_is_shown_as_the_last_one(console_output: Callable[[], str]) -> None:
+    """Test if a step is shown as the last one until it ends with its final guide."""
+    with progress_display("verbose", total_steps=1) as display:
+        display.step_group("Group", total=2)
+        with display.spinner("First", step="minor"):
+            assert rich_utils._SHARED_LIVE
+            assert rich_utils._SHARED_LIVE.progress.tasks[-1].description == " └─ [1/2] First"
+        with display.spinner("Second", step="minor"):
+            pass
+
+    assert _step_labels(console_output())[-2:] == [" ├─ [1/2] First", " └─ [2/2] Second"]
+
+
+def test_step_group_without_steps_is_ignored(console_output: Callable[[], str]) -> None:
+    """Test if a step group is ignored when the operation has no total number of steps."""
+    with progress_display("verbose") as display:
+        display.step_group("Group", total=2)
+
+    assert "Group" not in console_output()
+
+
+def test_step_group_is_closed_with_late_steps(console_output: Callable[[], str]) -> None:
+    """Test if a step group of steps enabled by a nested call is closed at the end of it."""
+    with progress_display("transient") as display:
+        with progress_display(total_steps=1):
+            display.step_group("Group", total=1)
+            assert display._step_group_key is not None
+        assert display._step_group_key is None
+        assert display.steps is None
+
+
+def test_reset_step_counter() -> None:
+    """Test if a reset starts the numbering from the beginning with a new prefix."""
+    steps = rich_utils.StepCounter(2)
+    steps.next_step(minor_steps=1)
+    steps.next_step("minor")
+    steps.reset("(1/2) ")
+
+    assert steps.is_new
+    assert steps.next_step() == "(1/2) [1/2]"
+
+
+@pytest.mark.parametrize(  # type: ignore
+    "mode,expected", [("verbose", ["Group", "Minor"]), ("transient", [])]
+)
+def test_plain_group_prints_step_group_only_when_verbose(
+    console_output: Callable[[], str], mode: VERBOSITY_MODE, expected: list[str]
+) -> None:
+    """Test if a process without a live display prints a step group only in verbose mode."""
+    group = rich_utils._PlainGroup(mode)
+    group.add(0, "Group", None, rich_utils._GROUP)
+    group.add(1, "Minor", None, rich_utils._SPINNER)
+    group.finish(1)
+    group.finish(0)
+
+    assert re.findall(r"pid \d+: (\w+)", console_output()) == expected
+
+
+def test_operation_labels_have_different_colors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test if labels of concurrent operations can be told apart by color."""
+    file = io.StringIO()
+    console = Console(file=file, force_terminal=True, color_system="standard", width=100)
+    monkeypatch.setattr(rich_utils, "_get_console", lambda: console)
+
+    def second() -> None:
+        with progress_display("verbose") as display, display.spinner("Second"):
+            pass
+
+    with progress_display("verbose") as display, display.spinner("First"):
+        thread = threading.Thread(target=second)
+        thread.start()
+        thread.join()
+
+    assert "\x1b[36m#1\x1b[0m" in file.getvalue()
+    assert "\x1b[35m#2\x1b[0m" in file.getvalue()
+
+
+def test_steps_use_ascii_in_console_without_unicode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test if a console that can't encode box characters gets ASCII labels."""
+    file = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+    console = Console(file=file, width=100)
+    monkeypatch.setattr(rich_utils, "_get_console", lambda: console)
+    with progress_display("verbose", total_steps=1) as display:
+        display.step_group("Group", total=2)
+        for name in ("First", "Second"):
+            with display.spinner(name, step="minor"):
+                pass
+
+    file.flush()
+    output = file.buffer.getvalue()
+    assert b" +- [1/2] First" in output
+    assert b" `- [2/2] Second" in output
+
+
+def test_step_group_row_stays_until_next_major_step(console_output: Callable[[], str]) -> None:
+    """Test if a transient step group is shown above its minor steps until the next major step."""
+    with progress_display("transient", total_steps=2) as display:
+        display.step_group("Group", total=1)
+        with display.spinner("Minor", step="minor"):
+            assert rich_utils._SHARED_LIVE
+            rows = [task.description for task in rich_utils._SHARED_LIVE.progress.tasks]
+            assert rows == ["[1/2] Group", " └─ [1/1] Minor"]
+        with display.spinner("Major", step="major"):
+            rows = [task.description for task in rich_utils._SHARED_LIVE.progress.tasks]
+            assert rows == ["[2/2] Major"]
+
+
+@pytest.mark.parametrize("group_total", [None, 0])  # type: ignore
+def test_minor_step_without_known_total(
+    console_output: Callable[[], str], group_total: Optional[int]
+) -> None:
+    """Test if a minor step without a known total of minor steps uses the major total."""
+    with progress_display("verbose", total_steps=2) as display:
+        if group_total is None:
+            with display.spinner("Major", step="major"):
+                pass
+        else:
+            display.step_group("Major", total=group_total)
+        with display.spinner("Minor", step="minor"):
+            pass
+
+    assert "[1.1/2] Minor" in console_output()
+
+
+def test_nested_operation_joins_step_group(console_output: Callable[[], str]) -> None:
+    """Test if steps and step groups of a nested operation extend the open step group."""
+
+    @with_progress_display(total_steps=2)
+    def nested(verbosity_mode: VERBOSITY_MODE = "verbose") -> None:
+        with progress_display() as display:
+            display.step_group("Skipped", total=2)
+            with display.spinner("First", step="minor"):
+                pass
+            with display.spinner("Second", step="minor"):
+                pass
+            with display.spinner("Third", step="major"):
+                pass
+
+    with progress_display("verbose", total_steps=2) as display:
+        with display.spinner("Before", step="major"):
+            pass
+        display.step_group("Group")
+        nested()
+
+    assert _step_labels(console_output()) == [
+        "[1/2] Before",
+        "[2/2] Group",
+        " ├─ [1/3] First",
+        " ├─ [2/3] Second",
+        " └─ [3/3] Third",
+    ]
 
 
 @with_progress_display(total_steps=2)
@@ -144,12 +307,13 @@ def test_nested_operation_steps(console_output: Callable[[], str]) -> None:
     _outer_operation("verbose", inner_first=True)
 
     assert _step_labels(console_output()) == [
-        "[ 1/5] Inner",
-        "[ 2/5] Second",
-        "[ 3/5] Outer",
-        "[ 4.1/5] Inner",
-        "[ 4.2/5] Second",
-        "[ 5/5] Last",
+        "[1/5] Inner",
+        "[2/5] Second",
+        "[3/5] Outer",
+        "[4/5] Nested",
+        " ├─ [1/2] Inner",
+        " └─ [2/2] Second",
+        "[5/5] Last",
     ]
 
 
@@ -165,9 +329,9 @@ def _dynamic_operation(verbosity_mode: VERBOSITY_MODE = "verbose") -> None:
 
 
 def test_add_steps_extends_total(console_output: Callable[[], str]) -> None:
-    """Test if the total grows in an outermost operation and not in a nested one."""
+    """Test if an outermost operation extends major steps and a nested one minor steps."""
     _dynamic_operation()
-    assert _step_labels(console_output()) == ["[ 1/2] First", "[ 2/2] Second"]
+    assert _step_labels(console_output()) == ["[1/2] First", "[2/2] Second"]
 
     @with_progress_display(total_steps=2)
     def outer(verbosity_mode: VERBOSITY_MODE = "verbose") -> None:
@@ -177,9 +341,10 @@ def test_add_steps_extends_total(console_output: Callable[[], str]) -> None:
 
     outer()
     assert _step_labels(console_output())[2:] == [
-        "[ 1/2] Before",
-        "[ 2.1/2] First",
-        "[ 2.2/2] Second",
+        "[1/2] Before",
+        "[2/2] Nested",
+        " ├─ [1/2] First",
+        " └─ [2/2] Second",
     ]
 
 

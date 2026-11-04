@@ -62,7 +62,30 @@ F = TypeVar("F", bound=Callable[..., Any])
 _SPINNER = "spinner"
 _BAR = "bar"
 _DOWNLOAD = "download"
+_GROUP = "group"
+# characters of `rich.tree.Tree` guides, ASCII ones are for consoles that can't encode them
+_TREE_BRANCHES = (" ├─ ", " └─ ")
+_ASCII_TREE_BRANCHES = (" +- ", " `- ")
 _REMOTE_UPDATE_INTERVAL_SECONDS = 0.2
+# ANSI colors follow the terminal theme, so they stay readable on light and dark backgrounds
+_LABEL_COLORS = (
+    "cyan",
+    "magenta",
+    "green",
+    "yellow",
+    "bright_blue",
+    "bright_red",
+    "bright_green",
+    "bright_magenta",
+)
+
+
+def _tree_branches() -> tuple[str, str]:
+    return _ASCII_TREE_BRANCHES if _get_console().options.ascii_only else _TREE_BRANCHES
+
+
+def _colored_label(label: str, number: int) -> str:
+    return f"[{_LABEL_COLORS[number % len(_LABEL_COLORS)]}]{label}[/]"
 
 
 class _SpeedColumn(ProgressColumn):  # type: ignore[misc]
@@ -99,7 +122,7 @@ class _DescriptionColumn(ProgressColumn):  # type: ignore[misc]
         description = Text.from_markup(task.description, style="progress.description")
         if not self.shared_live.show_labels:
             return description
-        return Text.assemble((task.fields["label"], "progress.data.speed"), " ", description)
+        return Text.assemble(Text.from_markup(task.fields["label"]), " ", description)
 
 
 class _GroupedProgress(Progress):  # type: ignore[misc]
@@ -143,6 +166,7 @@ class _SharedLive:
                         separator, elapsed, TextColumn("<"), remaining, separator,
                         TransferSpeedColumn(),
                     ],
+                    _GROUP: [],
                 }
             ),
             console=_get_console(),
@@ -208,12 +232,19 @@ class _LocalGroup(_SilentGroup):
 
     @property
     def label(self) -> str:
-        return f"#{self.index}"
+        return _colored_label(f"#{self.index}", self.index - 1)
 
     def add(self, key: int, description: str, total: Optional[float], kind: str) -> None:
-        self.task_ids[key] = self.progress.add_task(
+        if kind == _GROUP and not self.verbose:
+            kind = _SPINNER
+        task_id = self.progress.add_task(
             description, total=total, kind=kind, group=self.index, label=self.label
         )
+        self.task_ids[key] = task_id
+        if kind == _GROUP:
+            # printed above its steps, so it can't wait for them like other rows
+            self._stop_task(task_id)
+            self.progress.update(task_id, visible=False)
 
     def update(
         self,
@@ -233,17 +264,21 @@ class _LocalGroup(_SilentGroup):
 
     def finish(self, key: int) -> None:
         task_id = self.task_ids.pop(key)
-        if self._get_task(task_id).total is None:
+        self._stop_task(task_id)
+        self.progress.remove_task(task_id)
+
+    def _stop_task(self, task_id: TaskID) -> None:
+        task = self._get_task(task_id)
+        if task.total is None:
             # mark spinners as finished, so the spinner column renders as finished
             self.progress.update(task_id, total=1, completed=1)
         self.progress.stop_task(task_id)
-        if self.verbose:
-            self.progress.console.print(self.progress.make_tasks_table([self._get_task(task_id)]))
-        self.progress.remove_task(task_id)
+        if self.verbose and task.visible:
+            self.progress.console.print(self.progress.make_tasks_table([task]))
 
     def print(self, text: str) -> None:
         if self.shared_live.show_labels:
-            text = f"[progress.data.speed]{self.label}[/] {text}"
+            text = f"{self.label} {text}"
         self.progress.console.print(text)
 
     def print_task(self, key: int) -> None:
@@ -273,12 +308,15 @@ class _PlainGroup(_SilentGroup):
 
     def __init__(self, verbosity_mode: VERBOSITY_MODE) -> None:
         self.console = _get_console()
-        self.label = f"pid {os.getpid()}:"
+        self.label = _colored_label(f"pid {os.getpid()}:", os.getpid())
         self.verbose = verbosity_mode == "verbose"
         self.rows: dict[int, tuple[str, float]] = {}
 
     def add(self, key: int, description: str, total: Optional[float], kind: str) -> None:
-        self.rows[key] = (description, time.monotonic())
+        if kind != _GROUP:
+            self.rows[key] = (description, time.monotonic())
+        elif self.verbose:
+            self.print(description)
 
     def update(
         self,
@@ -292,13 +330,13 @@ class _PlainGroup(_SilentGroup):
             self.rows[key] = (description, self.rows[key][1])
 
     def finish(self, key: int) -> None:
-        if self.verbose:
+        if self.verbose and key in self.rows:
             self.print_task(key)
-        self.rows.pop(key)
+        self.rows.pop(key, None)
 
     def print(self, text: str) -> None:
         # single lines, so processes writing to the same console don't overwrite each other
-        self.console.print(f"[progress.data.speed]{self.label}[/] {text}")
+        self.console.print(f"{self.label} {text}")
 
     def print_task(self, key: int) -> None:
         description, start_time = self.rows[key]
@@ -537,7 +575,7 @@ class PoochProgressBar:
 
 
 class StepCounter:
-    """Numbering of major and minor steps of an operation, rendered like `[ 2.1/16]`."""
+    """Numbering of major steps of an operation and their minor steps."""
 
     def __init__(self, total_steps: int) -> None:
         """
@@ -550,6 +588,7 @@ class StepCounter:
         self.prefix = ""
         self.major_step_number = 0
         self.minor_step_number: Optional[int] = None
+        self.minor_steps_total: Optional[int] = None
         self._nesting_depth = 0
 
     @property
@@ -558,40 +597,55 @@ class StepCounter:
         return self.major_step_number == 0 and self.minor_step_number is None
 
     @property
+    def step_number(self) -> str:
+        """Unique number of the current step, like `2` or `2.1`."""
+        if self.minor_step_number is None:
+            return str(self.major_step_number)
+        return f"{self.major_step_number}.{self.minor_step_number}"
+
+    @property
     def current_step(self) -> str:
-        """Label of the current step."""
-        number = (
-            str(self.major_step_number)
-            if self.minor_step_number is None
-            else f"{self.major_step_number}.{self.minor_step_number}"
-        )
-        return f"{self.prefix}[{number: >4}/{self.total_steps}]"
+        """Label of the current step, like `[2/16]`, ` └─ [1/7]` or `[2.1/16]` without a group."""
+        total = self.minor_steps_total
+        if self.minor_step_number is None or not total:
+            width = len(str(self.total_steps))
+            return f"{self.prefix}[{self.step_number: >{width}}/{self.total_steps}]"
+
+        width = len(str(total))
+        return f"{self.prefix}{_tree_branches()[1]}[{self.minor_step_number: >{width}}/{total}]"
 
     def add_steps(self, count: int) -> None:
         """
         Extend the total when the number of steps is known only during the operation.
 
-        A nested operation runs as minor steps of the outer one, so it doesn't change the total.
+        A nested operation runs as minor steps of the outer one, so it extends their total.
         """
-        if not self._nesting_depth:
+        if self._nesting_depth:
+            self.add_minor_steps(count)
+        else:
             self.total_steps += count
 
-    def next_step(self, step: STEP = "major", with_minor_step: bool = False) -> str:
+    def add_minor_steps(self, count: int) -> None:
+        """Extend the total of minor steps of the current major step."""
+        self.minor_steps_total = (self.minor_steps_total or 0) + count
+
+    def next_step(self, step: STEP = "major", minor_steps: Optional[int] = None) -> str:
         """
         Count the next step.
 
         Args:
             step (Literal["major", "minor"], optional): Type of the step. Major steps of
                 a nested operation are counted as minor steps. Defaults to "major".
-            with_minor_step (bool, optional): Start counting minor steps of a new major step
-                from this one. Defaults to False.
+            minor_steps (Optional[int], optional): Number of minor steps of a new major step.
+                Defaults to None.
 
         Returns:
             str: Label of the counted step.
         """
         if step == "major" and not self._nesting_depth:
             self.major_step_number += 1
-            self.minor_step_number = 1 if with_minor_step else None
+            self.minor_step_number = None
+            self.minor_steps_total = minor_steps
         else:
             self.minor_step_number = (self.minor_step_number or 0) + 1
         return self.current_step
@@ -606,15 +660,16 @@ class StepCounter:
         self.prefix = prefix
         self.major_step_number = 0
         self.minor_step_number = None
+        self.minor_steps_total = None
 
     @contextmanager
-    def _nested_operation(self) -> Generator[None, None, None]:
-        # an operation started before the first step continues the numbering, a later one
-        # takes the next major step and its steps become minor steps of it
+    def _nested_operation(self, total_steps: int) -> Generator[None, None, None]:
+        # an operation started before the first step continues the numbering, steps of a later
+        # one become minor steps of the current step group
         if self.is_new:
             yield
             return
-        self.next_step()
+        self.add_minor_steps(total_steps)
         self._nesting_depth += 1
         try:
             yield
@@ -635,6 +690,8 @@ class ProgressDisplay:
         self._keys = count()
         self._used = False
         self._listener: Optional[tuple[multiprocessing.Queue[Any], threading.Thread]] = None
+        self._step_group_key: Optional[int] = None
+        self._minor_rows: dict[int, tuple[int, str]] = {}
         self.steps: Optional[StepCounter] = None
         self.pid = os.getpid()
 
@@ -649,18 +706,57 @@ class ProgressDisplay:
         description: str,
         total: Optional[float],
         step: Optional[STEP] = None,
-        with_minor_step: bool = False,
     ) -> int:
         if step is not None and self.steps is not None:
-            description = f"{self.steps.next_step(step, with_minor_step)} {description}"
+            description = f"{self.steps.next_step(step)} {description}"
+            if self.steps.minor_steps_total is None:
+                self._close_step_group()
         key = next(self._keys)
+        if step is not None and self.steps is not None and self.steps.minor_steps_total:
+            if self.steps.minor_step_number is not None:
+                self._minor_rows[key] = (self.steps.minor_step_number, description)
         self._group.add(key, description, total, kind)
         self._used = True
         return key
 
+    def _finish_task(self, key: int) -> None:
+        # the running step is shown as the last one, its final guide is known when it ends
+        number, description = self._minor_rows.pop(key, (None, None))
+        if description and self.steps and number != self.steps.minor_steps_total:
+            middle, last = _tree_branches()
+            self._group.update(key, description=description.replace(last, middle, 1))
+        self._group.finish(key)
+
+    def _close_step_group(self) -> None:
+        if self._step_group_key is not None:
+            self._group.finish(self._step_group_key)
+            self._step_group_key = None
+
+    def step_group(self, description: str, total: int = 0) -> None:
+        """
+        Start the next major step, which consists of minor steps shown under it.
+
+        The group stays open until the next major step or the end of the operation. In a nested
+        operation there is no new row, because the group is already a minor step of the outer
+        operation, so only the total of minor steps is extended.
+
+        Args:
+            description (str): Name of the major step.
+            total (int, optional): Number of its minor steps. Steps of operations nested in
+                the group are added automatically. Defaults to 0.
+        """
+        if self.steps is None:
+            return
+        if self.steps._nesting_depth:
+            self.steps.add_minor_steps(total - 1)
+            return
+        self._close_step_group()
+        label = self.steps.next_step(minor_steps=total)
+        self._step_group_key = self._add_task(_GROUP, f"{label} {description}", None)
+
     @contextmanager
     def spinner(
-        self, description: str, step: Optional[STEP] = None, with_minor_step: bool = False
+        self, description: str, step: Optional[STEP] = None
     ) -> Generator[None, None, None]:
         """
         Show a spinner with the elapsed time until the context exits.
@@ -670,14 +766,12 @@ class ProgressDisplay:
             step (Optional[Literal["major", "minor"]], optional): Count it as the next major
                 or minor step of the operation and prefix the description with the step
                 number. Works only when the operation has `total_steps`. Defaults to None.
-            with_minor_step (bool, optional): Start counting minor steps of a new major step
-                from this one. Defaults to False.
         """
-        key = self._add_task(_SPINNER, description, None, step, with_minor_step)
+        key = self._add_task(_SPINNER, description, None, step)
         try:
             yield
         finally:
-            self._group.finish(key)
+            self._finish_task(key)
 
     @contextmanager
     def bar(
@@ -685,7 +779,6 @@ class ProgressDisplay:
         description: str,
         total: Optional[float] = None,
         step: Optional[STEP] = None,
-        with_minor_step: bool = False,
     ) -> Generator[ProgressTask, None, None]:
         """
         Show a progress bar until the context exits.
@@ -697,17 +790,15 @@ class ProgressDisplay:
             step (Optional[Literal["major", "minor"]], optional): Count it as the next major
                 or minor step of the operation and prefix the description with the step
                 number. Works only when the operation has `total_steps`. Defaults to None.
-            with_minor_step (bool, optional): Start counting minor steps of a new major step
-                from this one. Defaults to False.
 
         Yields:
             ProgressTask: Handle for updating the progress bar.
         """
-        key = self._add_task(_BAR, description, total, step, with_minor_step)
+        key = self._add_task(_BAR, description, total, step)
         try:
             yield ProgressTask(self._group, key)
         finally:
-            self._group.finish(key)
+            self._finish_task(key)
 
     def pooch_progressbar(self, description: str) -> PoochProgressBar:
         """
@@ -754,6 +845,7 @@ class ProgressDisplay:
         return partial(_attach_to_parent, self._listener[0])
 
     def _close(self) -> None:
+        self._close_step_group()
         if self._listener is not None:
             # process all messages from child processes before closing this group
             queue, thread = self._listener
@@ -822,8 +914,9 @@ def progress_display(
         total_steps (Optional[int], optional): Number of major steps of the operation, which
             enables step numbers in `ProgressDisplay.spinner` and `ProgressDisplay.bar`.
             A nested operation started before the first step of the outer one continues its
-            numbering. A nested operation started later takes the next major step of the outer
-            operation and its steps are counted as minor steps. Defaults to None.
+            numbering. A nested operation started later joins the open step group or takes
+            the next major step of the outer operation, and its steps are counted as minor
+            steps. Defaults to None.
 
     Yields:
         ProgressDisplay: Progress display.
@@ -834,13 +927,16 @@ def progress_display(
         if total_steps is None:
             yield active_display
         elif active_display.steps is not None:
-            with active_display.steps._nested_operation():
+            if not active_display.steps.is_new and active_display.steps.minor_steps_total is None:
+                active_display.step_group("Nested operation")
+            with active_display.steps._nested_operation(total_steps):
                 yield active_display
         else:
             active_display.steps = StepCounter(total_steps)
             try:
                 yield active_display
             finally:
+                active_display._close_step_group()
                 active_display.steps = None
         return
 
