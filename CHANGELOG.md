@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Threads started with a copied context open their own progress display instead of reusing the parent's one
 - Replaced the global DuckDB connection with a temporary one to support running functions from multiple threads
 - Writing compressed and sorted parquet files atomically to support concurrent runs with the same output path
 - Crashed worker processes are no longer reported as `MemoryError` and retried with lower limits on Linux and macOS, unless they were killed with `SIGKILL`. On Windows, any crashed worker process is still reported as `MemoryError`

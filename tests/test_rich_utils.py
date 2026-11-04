@@ -8,6 +8,7 @@ import threading
 import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from contextvars import copy_context
 from typing import Any, Callable, Optional
 from unittest.mock import patch
 
@@ -396,6 +397,17 @@ def test_threads_share_display_in_stable_order(console_output: Callable[[], str]
     assert re.search(r"#2\s+Second operation", output)
     assert re.search(r"#1\s+First operation", output)
     assert rich_utils._SHARED_LIVE is None
+
+
+def test_thread_with_copied_context_opens_own_display(console_output: Callable[[], str]) -> None:
+    """Test if a thread started with a copied context doesn't reuse the display of its parent."""
+
+    def nested_display() -> Any:
+        with progress_display("transient") as display:
+            return display
+
+    with progress_display("transient") as display, ThreadPoolExecutor(max_workers=1) as executor:
+        assert executor.submit(copy_context().run, nested_display).result() is not display
 
 
 def test_operation_without_output_takes_no_number(console_output: Callable[[], str]) -> None:
