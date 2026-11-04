@@ -8,6 +8,7 @@ import threading
 import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from contextvars import copy_context
 from typing import Any, Callable, Optional
 from unittest.mock import patch
 
@@ -398,6 +399,17 @@ def test_threads_share_display_in_stable_order(console_output: Callable[[], str]
     assert rich_utils._SHARED_LIVE is None
 
 
+def test_thread_with_copied_context_opens_own_display(console_output: Callable[[], str]) -> None:
+    """Test if a thread started with a copied context doesn't reuse the display of its parent."""
+
+    def nested_display() -> Any:
+        with progress_display("transient") as display:
+            return display
+
+    with progress_display("transient") as display, ThreadPoolExecutor(max_workers=1) as executor:
+        assert executor.submit(copy_context().run, nested_display).result() is not display
+
+
 def test_operation_without_output_takes_no_number(console_output: Callable[[], str]) -> None:
     """Test if an operation that only holds the display open doesn't take a label number."""
 
@@ -461,6 +473,10 @@ def test_warnings_use_display_only_during_operation(
         with ThreadPoolExecutor(max_workers=1) as executor:
             # a thread without the display isn't a part of this operation
             assert "file.py" in executor.submit(warnings.formatwarning, *arguments).result()
+            # neither is a thread started with a copied context
+            context = copy_context()
+            formatted = executor.submit(lambda: context.run(warnings.formatwarning, *arguments))
+            assert "file.py" in formatted.result()
         with pytest.warns(UserWarning, match="Caught"):
             warnings.warn("Caught", UserWarning, stacklevel=1)
 

@@ -694,6 +694,7 @@ class ProgressDisplay:
         self._minor_rows: dict[int, tuple[int, str]] = {}
         self.steps: Optional[StepCounter] = None
         self.pid = os.getpid()
+        self.thread_id = threading.get_ident()
 
     @property
     def is_silent(self) -> bool:
@@ -855,6 +856,15 @@ class ProgressDisplay:
         self._group.close()
 
 
+def _get_active_display() -> Optional[ProgressDisplay]:
+    display = _ACTIVE_DISPLAY.get()
+    # a forked child process inherits the display of its parent, but can't render to it,
+    # and a thread started with a copied context is a separate operation
+    if display is None or (display.pid, display.thread_id) != (os.getpid(), threading.get_ident()):
+        return None
+    return display
+
+
 def _format_warning(
     message: Union[Warning, str],
     category: type[Warning],
@@ -863,8 +873,8 @@ def _format_warning(
     line: Optional[str] = None,
 ) -> str:
     text = f"{category.__name__}: {message}"
-    display = _ACTIVE_DISPLAY.get()
-    if display is None or display.pid != os.getpid():
+    display = _get_active_display()
+    if display is None:
         return _ORIGINAL_FORMATWARNING(message, category, filename, lineno, line)
     if display.is_silent:
         return f"{text}\n"
@@ -921,9 +931,8 @@ def progress_display(
     Yields:
         ProgressDisplay: Progress display.
     """
-    active_display = _ACTIVE_DISPLAY.get()
-    # a forked child process inherits the display of its parent, but can't render to it
-    if active_display is not None and active_display.pid == os.getpid():
+    active_display = _get_active_display()
+    if active_display is not None:
         if total_steps is None:
             yield active_display
         elif active_display.steps is not None:
