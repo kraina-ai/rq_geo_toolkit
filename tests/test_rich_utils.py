@@ -126,6 +126,51 @@ def test_steps_numbering(console_output: Callable[[], str]) -> None:
     assert re.search(r"\s{2}Unnumbered", console_output())
 
 
+def test_step_group_without_steps_is_ignored(console_output: Callable[[], str]) -> None:
+    """Test if a step group is ignored when the operation has no total number of steps."""
+    with progress_display("verbose") as display:
+        display.step_group("Group", total=2)
+
+    assert "Group" not in console_output()
+
+
+def test_step_group_is_closed_with_late_steps(console_output: Callable[[], str]) -> None:
+    """Test if a step group of steps enabled by a nested call is closed at the end of it."""
+    with progress_display("transient") as display:
+        with progress_display(total_steps=1):
+            display.step_group("Group", total=1)
+            assert display._step_group_key is not None
+        assert display._step_group_key is None
+        assert display.steps is None
+
+
+def test_reset_step_counter() -> None:
+    """Test if a reset starts the numbering from the beginning with a new prefix."""
+    steps = rich_utils.StepCounter(2)
+    steps.next_step(minor_steps=1)
+    steps.next_step("minor")
+    steps.reset("(1/2) ")
+
+    assert steps.is_new
+    assert steps.next_step() == "(1/2) [1/2]"
+
+
+@pytest.mark.parametrize(  # type: ignore
+    "mode,expected", [("verbose", ["Group", "Minor"]), ("transient", [])]
+)
+def test_plain_group_prints_step_group_only_when_verbose(
+    console_output: Callable[[], str], mode: VERBOSITY_MODE, expected: list[str]
+) -> None:
+    """Test if a process without a live display prints a step group only in verbose mode."""
+    group = rich_utils._PlainGroup(mode)
+    group.add(0, "Group", None, rich_utils._GROUP)
+    group.add(1, "Minor", None, rich_utils._SPINNER)
+    group.finish(1)
+    group.finish(0)
+
+    assert re.findall(r"pid \d+: (\w+)", console_output()) == expected
+
+
 def test_operation_labels_have_different_colors(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test if labels of concurrent operations can be told apart by color."""
     file = io.StringIO()
