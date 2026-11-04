@@ -11,11 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `temporary_duckdb_connection` context manager for an isolated DuckDB connection backed by a temporary database file
 - `atomic_output_path` context manager for writing files atomically
+- `progress_display` context manager and `with_progress_display` decorator for showing the progress of a whole operation in a single live display, including operations from multiple threads and attached child processes
+- `StepCounter` with numbered major and minor steps, enabled with `with_progress_display(total_steps=...)`; nested operations continue the numbering of the outer one
+- Warnings are printed through the progress display while it's open, with operation labels and without the source location
+- `ProgressDisplay.pooch_progressbar` for showing `pooch` downloads with a file name and a correct final transfer speed
 
 ### Fixed
 
 - Replaced the global DuckDB connection with a temporary one to support running functions from multiple threads
 - Writing compressed and sorted parquet files atomically to support concurrent runs with the same output path
+- Crashed worker processes are no longer reported as `MemoryError` and retried with lower limits on Linux and macOS, unless they were killed with `SIGKILL`. On Windows, any crashed worker process is still reported as `MemoryError`
 
 ## [2026.10.1] - 2026-10-26
 

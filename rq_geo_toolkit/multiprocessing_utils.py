@@ -1,6 +1,8 @@
 """Utilities for multiprocessing."""
 
 import multiprocessing
+import signal
+import sys
 import traceback
 from time import sleep
 from typing import Any, Optional
@@ -33,6 +35,15 @@ class WorkerProcess(multiprocessing.Process):
         if self._pconn.poll():
             self._exception = self._pconn.recv()
         return self._exception
+
+
+def raise_for_exit_code(process: multiprocessing.Process) -> None:
+    """Raise an error if a finished process failed without reporting an exception."""
+    if process.exitcode:
+        # the OOM killer sends SIGKILL; Windows exit codes don't show the cause
+        if sys.platform == "win32" or process.exitcode == -signal.SIGKILL:
+            raise MemoryError()
+        raise RuntimeError(f"Process failed with exit code {process.exitcode}.")
 
 
 def run_process_with_memory_monitoring(
@@ -70,5 +81,4 @@ def run_process_with_memory_monitoring(
         msg = f"{error}\n\nOriginal {traceback}"
         raise type(error)(msg)
 
-    if process.exitcode != 0:
-        raise MemoryError()
+    raise_for_exit_code(process)
