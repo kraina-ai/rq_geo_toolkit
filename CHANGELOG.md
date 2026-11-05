@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.11.1] - 2026-11-05
+
 ### Added
 
 - `ProgressDisplay.skip_step` for counting and showing a step with nothing to do
@@ -209,7 +211,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Georelated constants
 - DuckDB initialization function
 
-[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.11.0...HEAD
+[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.11.1...HEAD
+[2026.11.1]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.11.0...2026.11.1
 [2026.11.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.10.1...2026.11.0
 [2026.10.1]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.10.0...2026.10.1
 [2026.10.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.9.0...2026.10.0
