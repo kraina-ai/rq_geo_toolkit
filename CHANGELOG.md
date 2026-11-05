@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ProgressDisplay.skip_step` for counting and showing a step with nothing to do
+
+### Fixed
+
+- Verbose progress in Jupyter stays in the live widget, instead of a separate output for each finished row
+- Finished progress bars show real speed based on the whole duration, instead of `?` after a single update
+- Empty progress bars are shown as skipped, instead of a full bar with `0%`, `0/0` and `?`
+
 ## [2026.11.0] - 2026-11-04
 
 ### Added

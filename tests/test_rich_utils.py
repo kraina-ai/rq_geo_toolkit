@@ -9,11 +9,13 @@ import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from contextvars import copy_context
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, cast
 from unittest.mock import patch
 
 import pytest
 from rich.console import Console
+from rich.progress import Progress
+from rich.table import Table
 
 from rq_geo_toolkit import rich_utils
 from rq_geo_toolkit.rich_utils import VERBOSITY_MODE, progress_display, with_progress_display
@@ -408,6 +410,75 @@ def test_thread_with_copied_context_opens_own_display(console_output: Callable[[
 
     with progress_display("transient") as display, ThreadPoolExecutor(max_workers=1) as executor:
         assert executor.submit(copy_context().run, nested_display).result() is not display
+
+
+def test_verbose_rows_stay_in_jupyter_widget(
+    console_output: Callable[[], str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test if a notebook keeps rows of a verbose operation without additional outputs."""
+    tables: list[Table] = []
+
+    def record_table(renderable: Any) -> None:
+        if isinstance(renderable, Table):
+            tables.append(renderable)
+
+    with progress_display("verbose", total_steps=2) as display:
+        group = cast("rich_utils._LocalGroup", display._group)
+        group.keep_rows = True
+        monkeypatch.setattr(group.progress.console, "print", record_table)
+        with display.spinner("First", step="major"):
+            pass
+        display.step_group("Group", 1)
+        with display.spinner("Minor", step="minor"):
+            pass
+
+    assert not tables
+    assert not group.progress.live.transient
+    rows = zip(("First", "Group", "Minor"), group.progress.tasks, strict=True)
+    assert all(name in task.description for name, task in rows)
+
+
+@pytest.mark.parametrize(  # type: ignore[untyped-decorator]
+    "completed,finished_time,expected",
+    [(10, 2.0, "5.00 it/s"), (1, 4.0, "4.00 s/it"), (0, 1.0, "?"), (1, None, "?")],
+)
+def test_speed_of_finished_task_uses_whole_duration(
+    completed: int, finished_time: Optional[float], expected: str
+) -> None:
+    """Test if a finished task shows real speed, even after a single progress update."""
+    progress = Progress()
+    progress.add_task("Task", total=completed)
+    task = progress.tasks[0]
+    task.completed = completed
+    task.finished_time = finished_time
+
+    assert rich_utils._SpeedColumn().render(task).plain == expected
+
+
+def test_empty_bar_is_shown_as_skipped(console_output: Callable[[], str]) -> None:
+    """Test if a bar with nothing to do shows only its description."""
+    with progress_display("verbose") as display, display.bar("Empty step", total=0) as task:
+        task.track([])
+
+    output = console_output()
+    # finished row has no spinner frame
+    assert any(
+        line.startswith("  Empty step") and "skipped" in line for line in output.splitlines()
+    )
+    assert "0/0" not in output
+    assert "%" not in output
+
+
+def test_skipped_step_is_counted(console_output: Callable[[], str]) -> None:
+    """Test if a skipped step takes its number and doesn't show elapsed time."""
+    with progress_display("verbose", total_steps=2) as display:
+        display.skip_step("Nothing to do")
+        with display.spinner("Next", step="major"):
+            pass
+
+    output = console_output()
+    assert "[1/2] Nothing to do • skipped" in output
+    assert "[2/2] Next" in output
 
 
 def test_operation_without_output_takes_no_number(console_output: Callable[[], str]) -> None:
