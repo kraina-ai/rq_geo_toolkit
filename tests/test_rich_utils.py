@@ -9,6 +9,7 @@ import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from contextvars import copy_context
+from types import SimpleNamespace
 from typing import Any, Callable, Optional, cast
 from unittest.mock import patch
 
@@ -479,6 +480,43 @@ def test_skipped_step_is_counted(console_output: Callable[[], str]) -> None:
     output = console_output()
     assert "[1/2] Nothing to do • skipped" in output
     assert "[2/2] Next" in output
+
+
+def test_plain_group_shows_skipped_rows(console_output: Callable[[], str]) -> None:
+    """Test if a child process without a display prints skipped rows without elapsed time."""
+    group = rich_utils._PlainGroup("verbose")
+    group.add(1, "Skipped step", None, rich_utils._SKIPPED)
+    group.finish(1)
+    group.add(2, "Empty bar", None, rich_utils._BAR)
+    group.update(2, total=0)
+    group.finish(2)
+    group.add(3, "Finished step", None, rich_utils._SPINNER)
+    group.finish(3)
+
+    output = console_output()
+    assert "Skipped step • skipped" in output
+    assert "Empty bar • skipped" in output
+    assert "Finished step • 0:00:00" in output
+
+
+@pytest.mark.parametrize(  # type: ignore[untyped-decorator]
+    "verbosity_mode,ipywidgets_spec,expected",
+    [("verbose", object(), True), ("verbose", None, False), ("transient", object(), False)],
+)
+def test_rows_are_kept_only_with_jupyter_widget(
+    verbosity_mode: VERBOSITY_MODE,
+    ipywidgets_spec: Optional[object],
+    expected: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test if finished rows stay in the live widget only when it can show them."""
+    monkeypatch.setattr("importlib.util.find_spec", lambda _: ipywidgets_spec)
+    console = SimpleNamespace(is_jupyter=True)
+    shared_live = SimpleNamespace(progress=SimpleNamespace(console=console))
+
+    group = rich_utils._LocalGroup(cast("rich_utils._SharedLive", shared_live), verbosity_mode)
+
+    assert group.keep_rows is expected
 
 
 def test_operation_without_output_takes_no_number(console_output: Callable[[], str]) -> None:

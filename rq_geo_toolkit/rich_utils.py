@@ -332,8 +332,11 @@ class _PlainGroup(_SilentGroup):
         self.label = _colored_label(f"pid {os.getpid()}:", os.getpid())
         self.verbose = verbosity_mode == "verbose"
         self.rows: dict[int, tuple[str, float]] = {}
+        self.skipped_keys: set[int] = set()
 
     def add(self, key: int, description: str, total: Optional[float], kind: str) -> None:
+        if kind == _SKIPPED or total == 0:
+            self.skipped_keys.add(key)
         if kind != _GROUP:
             self.rows[key] = (description, time.monotonic())
         elif self.verbose:
@@ -347,6 +350,8 @@ class _PlainGroup(_SilentGroup):
         advance: Optional[float] = None,
         description: Optional[str] = None,
     ) -> None:
+        if total == 0:
+            self.skipped_keys.add(key)
         if description is not None:
             self.rows[key] = (description, self.rows[key][1])
 
@@ -354,6 +359,7 @@ class _PlainGroup(_SilentGroup):
         if self.verbose and key in self.rows:
             self.print_task(key)
         self.rows.pop(key, None)
+        self.skipped_keys.discard(key)
 
     def print(self, text: str) -> None:
         # single lines, so processes writing to the same console don't overwrite each other
@@ -362,7 +368,7 @@ class _PlainGroup(_SilentGroup):
     def print_task(self, key: int) -> None:
         description, start_time = self.rows[key]
         elapsed_time = timedelta(seconds=int(time.monotonic() - start_time))
-        self.print(f"{description} • {elapsed_time}")
+        self.print(f"{description} • {'skipped' if key in self.skipped_keys else elapsed_time}")
 
 
 class _RemoteGroup(_SilentGroup):
