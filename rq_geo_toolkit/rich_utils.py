@@ -6,6 +6,7 @@ Nested operations reuse the active group, operations started from other threads 
 in the same live display, and child processes can forward their progress to the parent.
 """
 
+import importlib.util
 import inspect
 import multiprocessing
 import os
@@ -63,6 +64,7 @@ _SPINNER = "spinner"
 _BAR = "bar"
 _DOWNLOAD = "download"
 _GROUP = "group"
+_SKIPPED = "skipped"
 # characters of `rich.tree.Tree` guides, ASCII ones are for consoles that can't encode them
 _TREE_BRANCHES = (" ├─ ", " └─ ")
 _ASCII_TREE_BRANCHES = (" +- ", " `- ")
@@ -90,12 +92,13 @@ def _colored_label(label: str, number: int) -> str:
 
 class _SpeedColumn(ProgressColumn):  # type: ignore[misc]
     def render(self, task: Task) -> Text:
-        if task.speed is None:
+        speed = task.completed / task.finished_time if task.finished_time else task.speed
+        if not speed:
             return Text("?", style="progress.data.speed")
-        elif task.speed >= 1:
-            return Text(f"{task.speed:.2f} it/s")
+        elif speed >= 1:
+            return Text(f"{speed:.2f} it/s")
         else:
-            return Text(f"{1 / task.speed:.2f} s/it")  # noqa: FURB126
+            return Text(f"{1 / speed:.2f} s/it")  # noqa: FURB126
 
 
 class _KindColumns(ProgressColumn):  # type: ignore[misc]
@@ -106,8 +109,11 @@ class _KindColumns(ProgressColumn):  # type: ignore[misc]
         self.columns_by_kind = columns_by_kind
 
     def render(self, task: Task) -> Table:
+        kind = task.fields["kind"]
+        if kind == _BAR and task.total == 0:
+            kind = _SKIPPED
         grid = Table.grid(padding=(0, 1))
-        grid.add_row(*(column(task) for column in self.columns_by_kind[task.fields["kind"]]))
+        grid.add_row(*(column(task) for column in self.columns_by_kind[kind]))
         return grid
 
 
@@ -167,6 +173,7 @@ class _SharedLive:
                         TransferSpeedColumn(),
                     ],
                     _GROUP: [],
+                    _SKIPPED: [separator, TextColumn("[dim]skipped")],
                 }
             ),
             console=_get_console(),
@@ -223,6 +230,12 @@ class _LocalGroup(_SilentGroup):
         self.shared_live = shared_live
         self.progress = shared_live.progress
         self.verbose = verbosity_mode == "verbose"
+        # every print is a separate cell output, so finished rows stay in the live widget instead
+        self.keep_rows = (
+            self.verbose
+            and self.progress.console.is_jupyter
+            and importlib.util.find_spec("ipywidgets") is not None
+        )
         self.task_ids: dict[int, TaskID] = {}
 
     @cached_property
@@ -244,7 +257,7 @@ class _LocalGroup(_SilentGroup):
         if kind == _GROUP:
             # printed above its steps, so it can't wait for them like other rows
             self._stop_task(task_id)
-            self.progress.update(task_id, visible=False)
+            self.progress.update(task_id, visible=self.keep_rows)
 
     def update(
         self,
@@ -265,15 +278,19 @@ class _LocalGroup(_SilentGroup):
     def finish(self, key: int) -> None:
         task_id = self.task_ids.pop(key)
         self._stop_task(task_id)
-        self.progress.remove_task(task_id)
+        if not self.keep_rows:
+            self.progress.remove_task(task_id)
 
     def _stop_task(self, task_id: TaskID) -> None:
         task = self._get_task(task_id)
         if task.total is None:
             # mark spinners as finished, so the spinner column renders as finished
             self.progress.update(task_id, total=1, completed=1)
+        elif task.total == 0:
+            # rich marks a task as finished only on update
+            self.progress.update(task_id)
         self.progress.stop_task(task_id)
-        if self.verbose and task.visible:
+        if self.verbose and task.visible and not self.keep_rows:
             self.progress.console.print(self.progress.make_tasks_table([task]))
 
     def print(self, text: str) -> None:
@@ -294,6 +311,10 @@ class _LocalGroup(_SilentGroup):
         with _SHARED_LIVE_LOCK:
             self.shared_live.open_groups -= 1
             if self.shared_live.open_groups == 0:
+                if self.progress.tasks:
+                    # kept rows stay in the widget, which `Live.stop` doesn't refresh in Jupyter
+                    self.progress.live.transient = False
+                    self.progress.refresh()
                 # `Progress.stop` adds an empty line in non-interactive consoles, which only
                 # makes sense for non-transient progress
                 self.progress.live.stop()
@@ -311,8 +332,11 @@ class _PlainGroup(_SilentGroup):
         self.label = _colored_label(f"pid {os.getpid()}:", os.getpid())
         self.verbose = verbosity_mode == "verbose"
         self.rows: dict[int, tuple[str, float]] = {}
+        self.skipped_keys: set[int] = set()
 
     def add(self, key: int, description: str, total: Optional[float], kind: str) -> None:
+        if kind == _SKIPPED or total == 0:
+            self.skipped_keys.add(key)
         if kind != _GROUP:
             self.rows[key] = (description, time.monotonic())
         elif self.verbose:
@@ -326,6 +350,8 @@ class _PlainGroup(_SilentGroup):
         advance: Optional[float] = None,
         description: Optional[str] = None,
     ) -> None:
+        if total == 0:
+            self.skipped_keys.add(key)
         if description is not None:
             self.rows[key] = (description, self.rows[key][1])
 
@@ -333,6 +359,7 @@ class _PlainGroup(_SilentGroup):
         if self.verbose and key in self.rows:
             self.print_task(key)
         self.rows.pop(key, None)
+        self.skipped_keys.discard(key)
 
     def print(self, text: str) -> None:
         # single lines, so processes writing to the same console don't overwrite each other
@@ -341,7 +368,7 @@ class _PlainGroup(_SilentGroup):
     def print_task(self, key: int) -> None:
         description, start_time = self.rows[key]
         elapsed_time = timedelta(seconds=int(time.monotonic() - start_time))
-        self.print(f"{description} • {elapsed_time}")
+        self.print(f"{description} • {'skipped' if key in self.skipped_keys else elapsed_time}")
 
 
 class _RemoteGroup(_SilentGroup):
@@ -754,6 +781,16 @@ class ProgressDisplay:
         self._close_step_group()
         label = self.steps.next_step(minor_steps=total)
         self._step_group_key = self._add_task(_GROUP, f"{label} {description}", None)
+
+    def skip_step(self, description: str, step: STEP = "major") -> None:
+        """
+        Count a step with nothing to do and show it as skipped.
+
+        Args:
+            description (str): Name of the step.
+            step (Literal["major", "minor"], optional): Type of the step. Defaults to "major".
+        """
+        self._finish_task(self._add_task(_SKIPPED, description, None, step))
 
     @contextmanager
     def spinner(
