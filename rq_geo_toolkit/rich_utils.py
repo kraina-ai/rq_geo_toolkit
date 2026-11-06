@@ -718,7 +718,7 @@ class ProgressDisplay:
         self._used = False
         self._listener: Optional[tuple[multiprocessing.Queue[Any], threading.Thread]] = None
         self._step_group_key: Optional[int] = None
-        self._minor_rows: dict[int, tuple[int, str]] = {}
+        self._rows: dict[int, tuple[Optional[int], str]] = {}
         self.steps: Optional[StepCounter] = None
         self.pid = os.getpid()
         self.thread_id = threading.get_ident()
@@ -740,23 +740,41 @@ class ProgressDisplay:
             if self.steps.minor_steps_total is None:
                 self._close_step_group()
         key = next(self._keys)
+        minor_step_number = None
         if step is not None and self.steps is not None and self.steps.minor_steps_total:
-            if self.steps.minor_step_number is not None:
-                self._minor_rows[key] = (self.steps.minor_step_number, description)
+            minor_step_number = self.steps.minor_step_number
+        self._rows[key] = (minor_step_number, description)
         self._group.add(key, description, total, kind)
         self._used = True
         return key
 
-    def _finish_task(self, key: int) -> None:
+    def _finish_task(self, key: int, failed: bool = False) -> None:
+        number, description = self._rows.pop(key)
+        final_description = description
         # the running step is shown as the last one, its final guide is known when it ends
-        number, description = self._minor_rows.pop(key, (None, None))
-        if description and self.steps and number != self.steps.minor_steps_total:
+        if number is not None and self.steps and number != self.steps.minor_steps_total:
             middle, last = _tree_branches()
-            self._group.update(key, description=description.replace(last, middle, 1))
+            final_description = final_description.replace(last, middle, 1)
+        if failed:
+            final_description = f"{final_description} • failed"
+        if final_description != description:
+            self._group.update(key, description=final_description)
         self._group.finish(key)
+
+    @contextmanager
+    def _finishing_task(self, key: int) -> Generator[None, None, None]:
+        failed = False
+        try:
+            yield
+        except Exception:
+            failed = True
+            raise
+        finally:
+            self._finish_task(key, failed=failed)
 
     def _close_step_group(self) -> None:
         if self._step_group_key is not None:
+            self._rows.pop(self._step_group_key, None)
             self._group.finish(self._step_group_key)
             self._step_group_key = None
 
@@ -805,11 +823,8 @@ class ProgressDisplay:
                 or minor step of the operation and prefix the description with the step
                 number. Works only when the operation has `total_steps`. Defaults to None.
         """
-        key = self._add_task(_SPINNER, description, None, step)
-        try:
+        with self._finishing_task(self._add_task(_SPINNER, description, None, step)):
             yield
-        finally:
-            self._finish_task(key)
 
     @contextmanager
     def bar(
@@ -833,10 +848,8 @@ class ProgressDisplay:
             ProgressTask: Handle for updating the progress bar.
         """
         key = self._add_task(_BAR, description, total, step)
-        try:
+        with self._finishing_task(key):
             yield ProgressTask(self._group, key)
-        finally:
-            self._finish_task(key)
 
     def pooch_progressbar(self, description: str) -> PoochProgressBar:
         """

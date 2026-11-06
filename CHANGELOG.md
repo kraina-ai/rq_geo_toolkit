@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Usage guide for the progress display in `rq_geo_toolkit/rich_utils.md`
+- Marking spinners and progress bars that end with an exception as `failed`
 
 ## [2026.11.1] - 2026-11-05
 

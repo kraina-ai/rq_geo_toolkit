@@ -482,6 +482,38 @@ def test_skipped_step_is_counted(console_output: Callable[[], str]) -> None:
     assert "[2/2] Next" in output
 
 
+@pytest.mark.parametrize("row", ["spinner", "bar"])  # type: ignore
+def test_failed_step_is_marked(console_output: Callable[[], str], row: str) -> None:
+    """Test if a failed step is marked and doesn't stop the next attempt of the step."""
+    with progress_display("verbose", total_steps=2) as display:
+        with pytest.raises(MemoryError), getattr(display, row)("Saving", step="major"):
+            raise MemoryError
+        cast("rich_utils.StepCounter", display.steps).major_step_number = 0
+        with display.spinner("Saving", step="major"):
+            pass
+
+    assert "[1/2] Saving • failed" in console_output()
+
+
+def test_failed_minor_step_keeps_tree_guide(console_output: Callable[[], str]) -> None:
+    """Test if a failed minor step is marked and keeps the guide of a middle row."""
+    with progress_display("verbose", total_steps=1) as display:
+        display.step_group("Group", 2)
+        with pytest.raises(MemoryError), display.spinner("Inner", step="minor"):
+            raise MemoryError
+
+    assert "├─ [1/2] Inner • failed" in console_output()
+
+
+def test_interrupted_step_is_not_marked_as_failed(console_output: Callable[[], str]) -> None:
+    """Test if a keyboard interrupt doesn't mark the step as failed."""
+    with pytest.raises(KeyboardInterrupt), progress_display("verbose", total_steps=1) as display:
+        with display.spinner("Saving", step="major"):
+            raise KeyboardInterrupt
+
+    assert "failed" not in console_output()
+
+
 def test_plain_group_shows_skipped_rows(console_output: Callable[[], str]) -> None:
     """Test if a child process without a display prints skipped rows without elapsed time."""
     group = rich_utils._PlainGroup("verbose")
