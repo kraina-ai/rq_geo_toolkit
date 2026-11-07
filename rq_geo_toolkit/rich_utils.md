@@ -166,7 +166,7 @@ while True:
         display.steps.major_step_number = first_step
 ```
 
-In the `verbose` mode the repeated steps are printed with the same numbers again. A spinner or a bar that ends with an exception is shown as `failed`, so the failed attempt can be told apart from the repeated one. `KeyboardInterrupt` doesn't mark it.
+In the `verbose` mode the repeated steps are printed with the same numbers again. A spinner or a bar that ends with an `Exception` is shown as `failed`, so the failed attempt can be told apart from the repeated one. Interruptions outside of `Exception`, like `KeyboardInterrupt`, `SystemExit` or `asyncio.CancelledError`, don't mark it.
 
 ### Files processed one by one
 
