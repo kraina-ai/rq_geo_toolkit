@@ -65,6 +65,7 @@ _BAR = "bar"
 _DOWNLOAD = "download"
 _GROUP = "group"
 _SKIPPED = "skipped"
+_FAILED = " • failed"
 # characters of `rich.tree.Tree` guides, ASCII ones are for consoles that can't encode them
 _TREE_BRANCHES = (" ├─ ", " └─ ")
 _ASCII_TREE_BRANCHES = (" +- ", " `- ")
@@ -110,7 +111,7 @@ class _KindColumns(ProgressColumn):  # type: ignore[misc]
 
     def render(self, task: Task) -> Table:
         kind = task.fields["kind"]
-        if kind == _BAR and task.total == 0:
+        if kind == _BAR and task.total == 0 and not task.description.endswith(_FAILED):
             kind = _SKIPPED
         grid = Table.grid(padding=(0, 1))
         grid.add_row(*(column(task) for column in self.columns_by_kind[kind]))
@@ -367,8 +368,9 @@ class _PlainGroup(_SilentGroup):
 
     def print_task(self, key: int) -> None:
         description, start_time = self.rows[key]
+        skipped = key in self.skipped_keys and not description.endswith(_FAILED)
         elapsed_time = timedelta(seconds=int(time.monotonic() - start_time))
-        self.print(f"{description} • {'skipped' if key in self.skipped_keys else elapsed_time}")
+        self.print(f"{description} • {'skipped' if skipped else elapsed_time}")
 
 
 class _RemoteGroup(_SilentGroup):
@@ -482,13 +484,13 @@ def _listen_to_children(queue: "multiprocessing.Queue[Any]") -> None:
 class ProgressTask:
     """Single progress row."""
 
-    def __init__(self, group: _SilentGroup, key: int) -> None:
+    def __init__(self, display: "ProgressDisplay", key: int) -> None:
         """
         Create a handle for a progress row.
 
         Use `ProgressDisplay.bar` instead.
         """
-        self._group = group
+        self._display = display
         self._key = key
 
     def update(
@@ -508,7 +510,7 @@ class ProgressTask:
             advance (Optional[float], optional): Number of steps to advance. Defaults to None.
             description (Optional[str], optional): New description. Defaults to None.
         """
-        self._group.update(self._key, completed, total, advance, description)
+        self._display._update_task(self._key, completed, total, advance, description)
 
     def track(
         self, iterable: Iterable[T], total: Optional[float] = None
@@ -534,7 +536,7 @@ class ProgressTask:
 
     def print_progress(self) -> None:
         """Print the current state of the progress row as a permanent line."""
-        self._group.print_task(self._key)
+        self._display._group.print_task(self._key)
 
 
 class PoochProgressBar:
@@ -592,12 +594,12 @@ class PoochProgressBar:
         """Change the description, e.g. to the name of the next downloaded file."""
         self.description = description
         if self._key is not None:
-            self._display._group.update(self._key, description=description)
+            self._display._update_task(self._key, description=description)
 
     def close(self) -> None:
         """Finish the current download."""
         if self._key is not None:
-            self._display._group.finish(self._key)
+            self._display._finish_task(self._key)
             self._key = None
 
 
@@ -748,6 +750,18 @@ class ProgressDisplay:
         self._used = True
         return key
 
+    def _update_task(
+        self,
+        key: int,
+        completed: Optional[float] = None,
+        total: Optional[float] = None,
+        advance: Optional[float] = None,
+        description: Optional[str] = None,
+    ) -> None:
+        if description is not None and key in self._rows:
+            self._rows[key] = (self._rows[key][0], description)
+        self._group.update(key, completed, total, advance, description)
+
     def _finish_task(self, key: int, failed: bool = False) -> None:
         number, description = self._rows.pop(key)
         final_description = description
@@ -756,7 +770,7 @@ class ProgressDisplay:
             middle, last = _tree_branches()
             final_description = final_description.replace(last, middle, 1)
         if failed:
-            final_description = f"{final_description} • failed"
+            final_description += _FAILED
         if final_description != description:
             self._group.update(key, description=final_description)
         self._group.finish(key)
@@ -849,7 +863,7 @@ class ProgressDisplay:
         """
         key = self._add_task(_BAR, description, total, step)
         with self._finishing_task(key):
-            yield ProgressTask(self._group, key)
+            yield ProgressTask(self, key)
 
     def pooch_progressbar(self, description: str) -> PoochProgressBar:
         """
