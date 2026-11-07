@@ -482,6 +482,99 @@ def test_skipped_step_is_counted(console_output: Callable[[], str]) -> None:
     assert "[2/2] Next" in output
 
 
+@pytest.mark.parametrize("row", ["spinner", "bar"])  # type: ignore
+def test_failed_step_is_marked(console_output: Callable[[], str], row: str) -> None:
+    """Test if a failed step is marked and doesn't stop the next attempt of the step."""
+    with progress_display("verbose", total_steps=2) as display:
+        with pytest.raises(MemoryError), getattr(display, row)("Saving", step="major"):
+            raise MemoryError
+        cast("rich_utils.StepCounter", display.steps).major_step_number = 0
+        with display.spinner("Retry", step="major"):
+            pass
+
+    output = console_output()
+    assert "[1/2] Saving • failed" in output
+    assert "[1/2] Retry" in output
+
+
+def test_failed_step_keeps_updated_description(console_output: Callable[[], str]) -> None:
+    """Test if a failed bar is marked with its current description."""
+    with progress_display("verbose") as display:
+        with pytest.raises(MemoryError), display.bar("Saving", total=2) as task:
+            task.update(description="Saving file")
+            raise MemoryError
+
+    assert "Saving file • failed" in console_output()
+
+
+def test_finished_minor_step_keeps_updated_description(console_output: Callable[[], str]) -> None:
+    """Test if changing the tree guide of a finished bar doesn't restore its description."""
+    with progress_display("verbose", total_steps=1) as display:
+        display.step_group("Group", 2)
+        with display.bar("Inner", total=1, step="minor") as task:
+            task.update(1, description="Renamed")
+
+    output = console_output()
+    assert any(line.startswith("  Renamed") for line in output.splitlines())
+
+
+def test_failed_empty_bar_is_not_skipped(console_output: Callable[[], str]) -> None:
+    """Test if a failure replaces the skipped status of a bar without any work."""
+    with progress_display("verbose") as display:
+        with pytest.raises(MemoryError), display.bar("Saving", total=0):
+            raise MemoryError
+
+    output = console_output()
+    assert "Saving • failed" in output
+    assert "failed • skipped" not in output
+
+
+def test_plain_group_failed_empty_bar_is_not_skipped(console_output: Callable[[], str]) -> None:
+    """Test if a child process without a display doesn't show a failed row as skipped."""
+    group = rich_utils._PlainGroup("verbose")
+    group.add(1, "Saving", 0, rich_utils._BAR)
+    group.update(1, description=f"Saving{rich_utils._FAILED}")
+    group.finish(1)
+
+    output = console_output()
+    assert "Saving • failed" in output
+    assert "skipped" not in output
+
+
+def test_finished_download_row_is_released(console_output: Callable[[], str]) -> None:
+    """Test if a finished download stays visible, but isn't tracked by the display."""
+    with progress_display("verbose") as display:
+        bar = display.pooch_progressbar("first.bin")
+        bar.total = 10
+        bar.set_description("second.bin")
+        bar.update(10)
+        bar.close()
+        assert not display._rows
+
+    assert "second.bin" in console_output()
+
+
+def test_failed_minor_step_keeps_tree_guide(console_output: Callable[[], str]) -> None:
+    """Test if a failed minor step is marked and keeps the guide of a middle row."""
+    with progress_display("verbose", total_steps=1) as display:
+        display.step_group("Group", 2)
+        with pytest.raises(MemoryError), display.spinner("Inner", step="minor"):
+            raise MemoryError
+
+    assert "├─ [1/2] Inner • failed" in console_output()
+
+
+def test_interrupted_step_is_not_marked_as_failed(console_output: Callable[[], str]) -> None:
+    """Test if a keyboard interrupt doesn't mark the step as failed."""
+    with pytest.raises(KeyboardInterrupt), progress_display("verbose", total_steps=1) as display:
+        with display.spinner("Saving", step="major"):
+            raise KeyboardInterrupt
+
+    output = console_output()
+    assert "failed" not in output
+    assert any(line.startswith("  [1/1] Saving") for line in output.splitlines())
+
+
 def test_plain_group_shows_skipped_rows(console_output: Callable[[], str]) -> None:
     """Test if a child process without a display prints skipped rows without elapsed time."""
     group = rich_utils._PlainGroup("verbose")
