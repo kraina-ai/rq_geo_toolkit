@@ -18,7 +18,8 @@ class MapLibreLayer(JSCSSMixin, TileLayer):  # type: ignore[misc]
     _template = Template("""
         {% macro script(this, kwargs) %}
             var {{ this.get_name() }} = L.maplibreGL({style: {{ this.style|tojson }}});
-            {{ this._parent.get_name() }}.setMaxZoom(20);
+            {% set map = this._parent.get_name() %}
+            if ({{ map }}.options.maxZoom === undefined) {{ map }}.setMaxZoom(20);
         {% endmacro %}
         """)
 

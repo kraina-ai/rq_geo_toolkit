@@ -33,3 +33,12 @@ def test_layer_control() -> None:
     folium.LayerControl().add_to(folium_map)
 
     assert '"Example"' in folium_map.get_root().render()
+
+
+def test_max_zoom() -> None:
+    """Test that the default zoom limit doesn't replace the limit of the map."""
+    folium_map = folium.Map(tiles=MapLibreLayer("https://example.com/style.json"), maxZoom=22)
+    name = folium_map.get_name()
+
+    html = folium_map.get_root().render()
+    assert f"if ({name}.options.maxZoom === undefined) {name}.setMaxZoom(20);" in html
