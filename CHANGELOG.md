@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.11.3] - 2026-11-24
+
 ### Added
 
 - `MapLibreLayer` with a basemap of any MapLibre style for Folium maps, and the `folium` optional dependency group
@@ -222,7 +224,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Georelated constants
 - DuckDB initialization function
 
-[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.11.2...HEAD
+[unreleased]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.11.3...HEAD
+[2026.11.3]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.11.2...2026.11.3
 [2026.11.2]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.11.1...2026.11.2
 [2026.11.1]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.11.0...2026.11.1
 [2026.11.0]: https://github.com/kraina-ai/rq_geo_toolkit/compare/2026.10.1...2026.11.0
