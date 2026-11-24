@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `MapLibreLayer` with a basemap of any MapLibre style for Folium maps, and the `folium` optional dependency group
+
 ## [2026.11.2] - 2026-11-07
 
 ### Added
